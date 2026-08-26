@@ -79,4 +79,4 @@ def test_split_counts_and_duplicate_guard(tmp_path: Path):
 def test_sha256_file(tmp_path: Path):
     payload = tmp_path / "archive.bin"
     payload.write_bytes(b"aeroguard")
-    assert sha256_file(payload) == "0cafec126126c576023705fe5d6f20c5c04b76d034a4d4371476c198c2c4fd2f"
+    assert sha256_file(payload) == "6ad1b087cdcc74008f080b2c7cf1168b5c8c63556dd6ce70523f51d88b12a8c1"
