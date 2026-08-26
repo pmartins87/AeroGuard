@@ -29,17 +29,18 @@ Last updated: 2026-08-26
 - [x] Deterministic synthetic video fixture generator implemented.
 - [x] First OpenCV baseline implemented: reference -> absdiff -> blur -> threshold -> morphology -> connected components -> persistence.
 - [x] First bounded multi-step agent trace implemented: crop evidence -> track verification -> re-inspect or human review.
-- [x] Unit tests created and locally validated.
+- [x] CLI now emits machine-readable event JSON, annotated video, and event-level evidence crops.
+- [x] Unit/integration tests created and locally validated (5/5 PASS in compatibility environment).
 - [x] GitHub Actions CI verifies OpenCV 5, tests, and deterministic demo.
-- [x] CI run `32979620618` completed **SUCCESS** on 2026-08-26.
+- [x] Latest CI run `32980264697` completed **SUCCESS** on 2026-08-26.
 
 ### ACTIVE
 
 - [ ] Complete Devpost draft project profile.
 - [ ] Submit AWS Compute Grant PDF while the proposal form remains open.
 - [ ] Acquire FOD-A and record exact archive provenance/checksum/license applicability.
-- [ ] Add annotated output video and evidence overlays to the CLI.
-- [ ] Establish the first real-data detection baseline.
+- [ ] Establish the first real-data FOD detection baseline.
+- [ ] Expand deterministic scenario suite beyond the single positive fixture.
 
 ### BLOCKERS
 
@@ -52,15 +53,15 @@ None currently.
    - Elevator pitch: `An agentic OpenCV 5 system that inspects airfield video, re-checks uncertain hazards, and escalates verified risks through a human-in-the-loop AWS workflow.`
    - Upload `AeroGuard_Vision_AWS_Compute_Grant_Proposal.pdf` to the official AWS Compute Grant proposal form.
 2. Acquire FOD-A primary dataset and freeze a reproducible manifest.
-3. Extend R1 CLI to produce annotated evidence video and event-level crops.
-4. Add scenario fixtures for false alarms/transient objects and validate agent decisions quantitatively.
-5. Begin real-data detector baseline while preserving the classical OpenCV pipeline as a reproducible fallback and COOL workload.
+3. Establish the first real-data detector baseline and size-conditioned metrics.
+4. Add scenario fixtures for false alarms, transient objects, weak evidence, and failure recovery.
+5. Keep the classical OpenCV path as a reproducible fallback and application-relevant COOL workload while learned perception is added.
 
 ## Verified baseline evidence
 
-- Local compatibility test (OpenCV 4.13 environment): 4/4 tests PASS; deterministic demo emits trace events.
+- Local compatibility test (OpenCV 4.13 environment): 5/5 tests PASS; deterministic demo writes JSON trace, annotated video, and evidence crops.
 - GitHub Actions competition environment: OpenCV 5.0.0.93 gate PASS; tests PASS; demo smoke test PASS.
-- CI run: `https://github.com/pmartins87/OpenCV/actions/runs/32979620618`
+- Latest CI run: `https://github.com/pmartins87/OpenCV/actions/runs/32980264697`
 
 ## Key success metrics
 
