@@ -15,6 +15,8 @@ Official proposal form fields verified on 2026-08-26:
 - Team Name: `AeroGuard Vision`
 - Country: `Brazil`
 - Proposal: use the verified **V2** PDF generated from `docs/AWS_COMPUTE_GRANT_PROPOSAL.md`
+- V2 PDF SHA-256: `4cce860965b17cb86212a9152e424b89f24d2d922b7666ae0df9cd9b6cb1dad6`
+- V2 PDF: 2 pages, A4, visually verified after rendering.
 
 ## Pre-submit gate
 
