@@ -18,21 +18,21 @@ FODA_DRIVE_FILE_ID = "1RdErcq8PGRXZUOGauaACkQG44T-QyZ4x"
 @dataclass(frozen=True)
 class VOCObject:
     name: str
-    xmin: int
-    ymin: int
-    xmax: int
-    ymax: int
+    xmin: float
+    ymin: float
+    xmax: float
+    ymax: float
 
     @property
-    def width(self) -> int:
-        return max(0, self.xmax - self.xmin)
+    def width(self) -> float:
+        return max(0.0, self.xmax - self.xmin)
 
     @property
-    def height(self) -> int:
-        return max(0, self.ymax - self.ymin)
+    def height(self) -> float:
+        return max(0.0, self.ymax - self.ymin)
 
     @property
-    def area(self) -> int:
+    def area(self) -> float:
         return self.width * self.height
 
 
@@ -52,7 +52,7 @@ class FODASummary:
     class_counts: dict[str, int]
     image_widths: tuple[int, ...]
     image_heights: tuple[int, ...]
-    object_areas: tuple[int, ...]
+    object_areas: tuple[float, ...]
 
     @property
     def classes(self) -> tuple[str, ...]:
@@ -92,23 +92,27 @@ def _required_text(root: ET.Element, path: str) -> str:
 
 
 def parse_voc_annotation(path: str | Path) -> VOCAnnotation:
-    """Parse one Pascal VOC XML file with strict bounding-box validation."""
+    """Parse one Pascal VOC XML file with strict bounding-box validation.
+
+    FOD-A v2.1 contains fractional box coordinates after its 400->300 resize.
+    They are preserved as floats rather than silently truncated.
+    """
     root = ET.parse(Path(path)).getroot()
     filename = _required_text(root, "filename")
-    width = int(_required_text(root, "size/width"))
-    height = int(_required_text(root, "size/height"))
+    width = int(float(_required_text(root, "size/width")))
+    height = int(float(_required_text(root, "size/height")))
     if width <= 0 or height <= 0:
         raise ValueError(f"invalid image dimensions in {path}: {width}x{height}")
 
     objects: list[VOCObject] = []
     for node in root.findall("object"):
         name = _required_text(node, "name")
-        xmin = int(_required_text(node, "bndbox/xmin"))
-        ymin = int(_required_text(node, "bndbox/ymin"))
-        xmax = int(_required_text(node, "bndbox/xmax"))
-        ymax = int(_required_text(node, "bndbox/ymax"))
+        xmin = float(_required_text(node, "bndbox/xmin"))
+        ymin = float(_required_text(node, "bndbox/ymin"))
+        xmax = float(_required_text(node, "bndbox/xmax"))
+        ymax = float(_required_text(node, "bndbox/ymax"))
 
-        if not (0 <= xmin < xmax <= width and 0 <= ymin < ymax <= height):
+        if not (0.0 <= xmin < xmax <= width and 0.0 <= ymin < ymax <= height):
             raise ValueError(
                 f"invalid bounding box in {path}: "
                 f"{name} ({xmin}, {ymin}, {xmax}, {ymax}) for {width}x{height}"
@@ -136,7 +140,7 @@ def summarize_voc_dataset(root: str | Path) -> FODASummary:
     class_counts: Counter[str] = Counter()
     widths: set[int] = set()
     heights: set[int] = set()
-    object_areas: list[int] = []
+    object_areas: list[float] = []
     images_with_objects = 0
 
     for xml_path in xml_paths:
