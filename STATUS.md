@@ -24,7 +24,8 @@ Last updated: 2026-08-26
 - [x] Agentic and COOL special-award evidence mapped to concrete evaluation artifacts.
 - [x] Dataset/provenance ledger created; FOD-A selected as primary acquisition candidate.
 - [x] Architecture v1 documented, including Graviton4 + COOL + CloudWatch and optional Bedrock path.
-- [x] AWS Compute Grant proposal source completed and upload-ready PDF generated.
+- [x] AWS Compute Grant proposal V2 strengthened around team/domain fit, execution proof, two-stage grant plan, and AWS-specific risk reduction.
+- [x] Upload-ready AWS Compute Grant V2 PDF generated and visually verified as a two-page document.
 - [x] Reproducible Python package scaffold created with `opencv-python-headless==5.0.0.93`.
 - [x] Deterministic synthetic video fixture generator implemented.
 - [x] First OpenCV baseline implemented: reference -> absdiff -> blur -> threshold -> morphology -> connected components -> persistence.
@@ -37,7 +38,7 @@ Last updated: 2026-08-26
 ### ACTIVE
 
 - [ ] Complete Devpost draft project profile.
-- [ ] Submit AWS Compute Grant PDF while the proposal form remains open.
+- [ ] Submit AWS Compute Grant V2 PDF while the proposal form remains open.
 - [ ] Acquire FOD-A and record exact archive provenance/checksum/license applicability.
 - [ ] Establish the first real-data FOD detection baseline.
 - [ ] Expand deterministic scenario suite beyond the single positive fixture.
@@ -51,7 +52,7 @@ None currently.
 1. User-facing registration tasks:
    - Devpost project name: `AeroGuard Vision`
    - Elevator pitch: `An agentic OpenCV 5 system that inspects airfield video, re-checks uncertain hazards, and escalates verified risks through a human-in-the-loop AWS workflow.`
-   - Upload `AeroGuard_Vision_AWS_Compute_Grant_Proposal.pdf` to the official AWS Compute Grant proposal form.
+   - Upload the verified V2 AWS Compute Grant PDF to the official proposal form.
 2. Acquire FOD-A primary dataset and freeze a reproducible manifest.
 3. Establish the first real-data detector baseline and size-conditioned metrics.
 4. Add scenario fixtures for false alarms, transient objects, weak evidence, and failure recovery.
