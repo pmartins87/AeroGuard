@@ -8,6 +8,13 @@ from typing import Iterable
 from xml.etree import ElementTree as ET
 
 
+FODA_REPOSITORY = "https://github.com/FOD-UNOmaha/FOD-data"
+FODA_VERSION = "2.1"
+FODA_FORMAT = "Pascal VOC"
+FODA_IMAGE_SIZE = (300, 300)
+FODA_DRIVE_FILE_ID = "1RdErcq8PGRXZUOGauaACkQG44T-QyZ4x"
+
+
 @dataclass(frozen=True)
 class VOCObject:
     name: str
