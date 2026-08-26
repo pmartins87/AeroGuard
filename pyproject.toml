@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aeroguard-vision"
+version = "0.1.0"
+description = "Agentic airfield visual inspection prototype for the OpenCV AI Competition 2026"
+requires-python = ">=3.11"
+dependencies = [
+  "opencv-python-headless==5.0.0.93",
+  "numpy>=2.0,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[project.scripts]
+aeroguard = "aeroguard.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
