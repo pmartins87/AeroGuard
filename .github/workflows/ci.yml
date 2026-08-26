@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      - name: Verify OpenCV 5
+        run: python -c "import cv2; assert cv2.__version__.startswith('5.'), cv2.__version__; print(cv2.__version__)"
+      - run: pytest -q
+      - name: Deterministic demo smoke test
+        run: aeroguard demo --video artifacts/fixture.mp4 --output-json artifacts/events.json
