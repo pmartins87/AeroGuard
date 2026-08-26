@@ -53,6 +53,20 @@ def test_parse_voc_annotation_and_summary(tmp_path: Path):
     assert summary.image_heights == (300,)
 
 
+def test_fractional_coordinates_are_preserved(tmp_path: Path):
+    xml = tmp_path / "fractional.xml"
+    _write_annotation(
+        xml,
+        "fractional.jpg",
+        [{"name": "metal", "xmin": 138.2219, "ymin": 10.5, "xmax": 160.75, "ymax": 40.25}],
+    )
+    annotation = parse_voc_annotation(xml)
+    box = annotation.objects[0]
+    assert box.xmin == pytest.approx(138.2219)
+    assert box.ymax == pytest.approx(40.25)
+    assert box.area > 0
+
+
 def test_invalid_box_is_rejected(tmp_path: Path):
     xml = tmp_path / "bad.xml"
     _write_annotation(
