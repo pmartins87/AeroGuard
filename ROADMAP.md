@@ -25,15 +25,15 @@ Deliverables:
 - [x] Python environment with pinned `opencv-python-headless==5.0.0.93`.
 - [x] OpenCV 5 version check in CI.
 - [x] Deterministic sample video fixture generator.
-- [~] Frame ingest, reference comparison, candidate extraction and temporal persistence implemented; stabilization/ROI policy/overlays still pending.
+- [~] Frame ingest, reference comparison, candidate extraction and temporal persistence implemented; stabilization/ROI policy still pending.
 - [~] Baseline detector/tracker behavior exists via connected components + persistence; learned detector interface still pending.
-- [~] CLI produces machine-readable event JSON; annotated output video still pending.
-- [x] Unit tests for perception and agent decisions.
-- [x] GitHub Actions smoke test. Run `32979620618`: PASS.
+- [x] CLI produces machine-readable event JSON, annotated output video, and event-level evidence crops.
+- [x] Unit/integration tests, including artifact generation.
+- [x] GitHub Actions OpenCV 5 smoke test. Latest verified run `32980264697`: PASS.
 
 Exit gate: one command turns a known video into reproducible detections + evidence.
 
-Current one-command path already produces detections and JSON trace; R1 remains open until visual evidence artifacts/annotated video and a first real-data baseline are included.
+The synthetic/deterministic portion of this exit gate is already met. R1 remains open until the first real-data FOD baseline is integrated and the reference/ROI assumptions are documented against that data.
 
 ## R2 - Perception quality and hazard verification | Sep 6-12
 
@@ -64,6 +64,7 @@ Evidence:
 - [x] Trace schema records perception -> decision -> action.
 - [x] Uncertain baseline cases trigger targeted re-analysis actions.
 - [x] Human-review action protects consequential escalation in the baseline controller.
+- [x] Judge-visible evidence crops and annotated video are generated for the deterministic trace.
 - [ ] Timeouts/tool failures and deterministic fallback behavior.
 - [ ] Model-backed orchestrator experiment (e.g. Bedrock) only if it improves measured task success.
 
