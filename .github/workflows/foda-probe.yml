@@ -38,7 +38,16 @@ jobs:
         run: |
           mkdir -p /tmp/foda/extracted
           unzip -q /tmp/foda/foda_v2_1_voc.zip -d /tmp/foda/extracted
-          find /tmp/foda/extracted -maxdepth 3 -type d | head -80
+          find /tmp/foda/extracted -maxdepth 3 -type d | sort | head -100
+
+      - name: Discover source split files
+        run: |
+          {
+            echo "# Candidate train/validation/test and ImageSets files"
+            find /tmp/foda/extracted -type f \
+              \( -iname '*train*' -o -iname '*val*' -o -iname '*test*' -o -path '*/ImageSets/*' \) \
+              -printf '%p\n' | sort | head -300
+          } | tee artifacts_foda_split_candidates.txt
 
       - name: Inspect VOC annotations and source splits
         run: |
@@ -56,4 +65,5 @@ jobs:
           path: |
             artifacts/foda_manifest.json
             artifacts_foda_archive_sha256.txt
+            artifacts_foda_split_candidates.txt
           retention-days: 30
