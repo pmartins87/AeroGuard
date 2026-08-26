@@ -1,0 +1,59 @@
+name: foda-probe
+
+on:
+  push:
+    paths:
+      - ".github/workflows/foda-probe.yml"
+      - "src/aeroguard/datasets/**"
+      - "scripts/foda_inspect.py"
+      - "tests/test_foda.py"
+  workflow_dispatch:
+
+jobs:
+  inspect-foda-v21-voc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project and acquisition helper
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install "gdown>=5,<6"
+
+      - name: Download official FOD-A 2.1 Pascal VOC archive
+        run: |
+          mkdir -p /tmp/foda
+          gdown "https://drive.google.com/uc?id=1RdErcq8PGRXZUOGauaACkQG44T-QyZ4x" -O /tmp/foda/foda_v2_1_voc.zip
+          ls -lh /tmp/foda/foda_v2_1_voc.zip
+          sha256sum /tmp/foda/foda_v2_1_voc.zip | tee artifacts_foda_archive_sha256.txt
+
+      - name: Extract archive
+        run: |
+          mkdir -p /tmp/foda/extracted
+          unzip -q /tmp/foda/foda_v2_1_voc.zip -d /tmp/foda/extracted
+          find /tmp/foda/extracted -maxdepth 3 -type d | head -80
+
+      - name: Inspect VOC annotations and source splits
+        run: |
+          python scripts/foda_inspect.py /tmp/foda/extracted \
+            --archive /tmp/foda/foda_v2_1_voc.zip \
+            --output artifacts/foda_manifest.json
+          cat artifacts/foda_manifest.json
+
+      - name: Run dataset utility tests
+        run: pytest -q tests/test_foda.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: foda-v2-1-provenance
+          path: |
+            artifacts/foda_manifest.json
+            artifacts_foda_archive_sha256.txt
+          retention-days: 30
