@@ -17,14 +17,20 @@ WEIGHTS_DIR="$OUTPUT_ROOT/weights"
 RESULTS_DIR="$OUTPUT_ROOT/results"
 YOLOX_COMMIT="6ddff4824372906469a7fae2dc3206c7aa4bbaee"
 BATCH_SIZE="${BATCH_SIZE:-16}"
+DEVICE_COUNT="${DEVICE_COUNT:-1}"
 
 mkdir -p "$OUTPUT_ROOT" "$WEIGHTS_DIR" "$RESULTS_DIR"
 
-python - <<'PY'
+python - <<PY
 import torch
+required = int(${DEVICE_COUNT})
 if not torch.cuda.is_available():
     raise SystemExit("CUDA GPU is required for the frozen YOLOX training stage")
-print("CUDA device:", torch.cuda.get_device_name(0))
+if torch.cuda.device_count() < required:
+    raise SystemExit(f"Requested {required} CUDA devices, found {torch.cuda.device_count()}")
+print("CUDA devices:", torch.cuda.device_count())
+for i in range(required):
+    print(f"GPU {i}:", torch.cuda.get_device_name(i))
 print("torch:", torch.__version__)
 PY
 
@@ -40,7 +46,7 @@ if [[ -n "$(git -C "$YOLOX_DIR" status --porcelain)" ]]; then
   exit 3
 fi
 git -C "$YOLOX_DIR" checkout --detach "$YOLOX_COMMIT"
-python -m pip install -e "$YOLOX_DIR" --no-deps
+python -m pip install -e "$YOLOX_DIR" --no-deps --no-build-isolation
 
 rm -rf "$PREPARED_DIR"
 python "$ROOT/scripts/foda_prepare_yolox.py" \
@@ -59,13 +65,15 @@ sha256sum "$PRETRAINED" | tee "$RESULTS_DIR/pretrained.sha256"
   echo "aeroguard_commit=$(git -C "$ROOT" rev-parse HEAD)"
   echo "yolox_commit=$(git -C "$YOLOX_DIR" rev-parse HEAD)"
   echo "batch_size=$BATCH_SIZE"
+  echo "device_count=$DEVICE_COUNT"
   python - <<'PY'
 import cv2, numpy, torch
 print("opencv=" + cv2.__version__)
 print("numpy=" + numpy.__version__)
 print("torch=" + torch.__version__)
 print("cuda=" + str(torch.version.cuda))
-print("gpu=" + torch.cuda.get_device_name(0))
+for i in range(torch.cuda.device_count()):
+    print(f"gpu_{i}=" + torch.cuda.get_device_name(i))
 PY
   nvidia-smi || true
 } | tee "$RESULTS_DIR/environment.txt"
@@ -74,7 +82,7 @@ export AEROGUARD_COCO_DIR="$PREPARED_DIR"
 cd "$ROOT"
 python "$YOLOX_DIR/tools/train.py" \
   -f "$ROOT/training/yolox/foda_tiny.py" \
-  -d 1 \
+  -d "$DEVICE_COUNT" \
   -b "$BATCH_SIZE" \
   -c "$PRETRAINED"
 
@@ -85,6 +93,10 @@ if [[ ! -f "$BEST_CKPT" ]]; then
 fi
 cp "$BEST_CKPT" "$WEIGHTS_DIR/foda_tiny_best.pth"
 sha256sum "$WEIGHTS_DIR/foda_tiny_best.pth" | tee "$RESULTS_DIR/trained_checkpoint.sha256"
+
+# Frozen YOLOX uses a removed private torch.onnx._export symbol. Patch only that
+# call to the supported public equivalent, matching the already-passed CI contract.
+sed -i 's/torch\.onnx\._export(/torch.onnx.export(/' "$YOLOX_DIR/tools/export_onnx.py"
 
 ONNX="$WEIGHTS_DIR/foda_tiny_decoded.onnx"
 python "$YOLOX_DIR/tools/export_onnx.py" \
