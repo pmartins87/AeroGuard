@@ -13,6 +13,7 @@ FODA_VERSION = "2.1"
 FODA_FORMAT = "Pascal VOC"
 FODA_IMAGE_SIZE = (300, 300)
 FODA_DRIVE_FILE_ID = "1RdErcq8PGRXZUOGauaACkQG44T-QyZ4x"
+FODA_SPLIT_CANDIDATES = ("trainval.txt", "test.txt", "train.txt", "val.txt")
 
 
 @dataclass(frozen=True)
@@ -164,19 +165,95 @@ def summarize_voc_dataset(root: str | Path) -> FODASummary:
     )
 
 
-def verify_split_members(root: str | Path, split_files: Iterable[str] = ("train.txt", "val.txt")) -> dict[str, int]:
-    """Count IDs in source-provided split files when available.
+def _split_file_matches(root: Path, split_name: str) -> list[Path]:
+    matches = [path for path in root.rglob(split_name) if "ImageSets" in path.parts]
+    return sorted(matches)
 
-    This deliberately does not invent a split when the source archive already provides one.
+
+def load_split_members(path: str | Path) -> tuple[str, ...]:
+    """Load one VOC split file and reject duplicate IDs."""
+    split_path = Path(path)
+    values = tuple(
+        line.strip().split()[0]
+        for line in split_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    )
+    if len(values) != len(set(values)):
+        raise ValueError(f"duplicate IDs in split file: {split_path}")
+    return values
+
+
+def discover_source_splits(
+    root: str | Path,
+    split_files: Iterable[str] = FODA_SPLIT_CANDIDATES,
+) -> dict[str, dict]:
+    """Describe source-provided VOC split files with hashes and membership checks.
+
+    FOD-A v2.1 uses ``trainval.txt`` and ``test.txt`` inside ``ImageSets/Main``.
+    We still probe conventional ``train.txt``/``val.txt`` names so the inspector is
+    robust to future source revisions. Ambiguous duplicate split filenames fail
+    closed rather than silently selecting one.
     """
     base = Path(root)
-    result: dict[str, int] = {}
+    annotations = find_voc_annotations(base)
+    annotation_ids = {path.stem for path in annotations}
+    result: dict[str, dict] = {}
+    member_sets: dict[str, set[str]] = {}
+
     for split_name in split_files:
-        matches = sorted(base.rglob(split_name))
+        matches = _split_file_matches(base, split_name)
         if not matches:
             continue
-        values = [line.strip() for line in matches[0].read_text(encoding="utf-8").splitlines() if line.strip()]
-        if len(values) != len(set(values)):
-            raise ValueError(f"duplicate IDs in split file: {matches[0]}")
-        result[split_name.removesuffix(".txt")] = len(values)
+        if len(matches) > 1:
+            raise ValueError(
+                f"ambiguous source split {split_name}: "
+                + ", ".join(str(path) for path in matches)
+            )
+        path = matches[0]
+        members = load_split_members(path)
+        member_set = set(members)
+        key = split_name.removesuffix(".txt")
+        member_sets[key] = member_set
+        unknown = sorted(member_set - annotation_ids)
+        result[key] = {
+            "count": len(members),
+            "relative_path": str(path.relative_to(base)),
+            "sha256": sha256_file(path),
+            "unknown_annotation_ids": len(unknown),
+            "unknown_annotation_id_examples": unknown[:10],
+        }
+
+    if "trainval" in member_sets and "test" in member_sets:
+        overlap = member_sets["trainval"] & member_sets["test"]
+        covered = member_sets["trainval"] | member_sets["test"]
+        missing = sorted(annotation_ids - covered)
+        extra = sorted(covered - annotation_ids)
+        result["coverage"] = {
+            "annotation_ids": len(annotation_ids),
+            "trainval_test_overlap": len(overlap),
+            "covered_annotation_ids": len(covered & annotation_ids),
+            "missing_annotation_ids": len(missing),
+            "extra_split_ids": len(extra),
+            "overlap_examples": sorted(overlap)[:10],
+            "missing_examples": missing[:10],
+            "extra_examples": extra[:10],
+        }
+
     return result
+
+
+def verify_split_members(
+    root: str | Path,
+    split_files: Iterable[str] = FODA_SPLIT_CANDIDATES,
+) -> dict[str, int]:
+    """Return counts for source-provided split files when available.
+
+    Kept as a compact compatibility helper; use :func:`discover_source_splits`
+    when hashes and coverage evidence are required.
+    """
+    details = discover_source_splits(root, split_files)
+    return {
+        name: int(info["count"])
+        for name, info in details.items()
+        if name != "coverage" and isinstance(info, dict) and "count" in info
+    }
