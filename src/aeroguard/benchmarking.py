@@ -18,18 +18,31 @@ def sha256_file(path: str | Path) -> str:
     return h.hexdigest()
 
 
-def timing_summary(values_ms: list[float]) -> dict[str, float | int]:
-    if not values_ms:
-        raise ValueError("at least one timing sample is required")
-    values = np.asarray(values_ms, dtype=np.float64)
+def numeric_summary(values_in: list[float]) -> dict[str, float | int]:
+    if not values_in:
+        raise ValueError("at least one numeric sample is required")
+    values = np.asarray(values_in, dtype=np.float64)
     return {
         "count": int(values.size),
-        "min_ms": float(np.min(values)),
-        "mean_ms": float(np.mean(values)),
-        "p50_ms": float(np.quantile(values, 0.50)),
-        "p95_ms": float(np.quantile(values, 0.95)),
-        "max_ms": float(np.max(values)),
-        "stdev_ms": float(statistics.pstdev(values_ms)),
+        "min": float(np.min(values)),
+        "mean": float(np.mean(values)),
+        "p50": float(np.quantile(values, 0.50)),
+        "p95": float(np.quantile(values, 0.95)),
+        "max": float(np.max(values)),
+        "stdev": float(statistics.pstdev(values_in)),
+    }
+
+
+def timing_summary(values_ms: list[float]) -> dict[str, float | int]:
+    base = numeric_summary(values_ms)
+    return {
+        "count": base["count"],
+        "min_ms": base["min"],
+        "mean_ms": base["mean"],
+        "p50_ms": base["p50"],
+        "p95_ms": base["p95"],
+        "max_ms": base["max"],
+        "stdev_ms": base["stdev"],
     }
 
 
