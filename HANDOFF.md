@@ -8,7 +8,7 @@ Compete seriously for prize money in the **OpenCV AI Competition 2026, powered b
 
 ## Source of truth
 
-Repository: `pmartins87/OpenCV`
+Repository: `pmartins87/AeroGuard`
 
 Canonical read order:
 1. `STATUS.md`
@@ -33,10 +33,10 @@ Core behavior:
 
 ## Current immediate work
 
-1. Finish the Devpost project overview.
-2. Prepare/submit the AWS Compute Grant proposal if still available.
-3. Research and lock legal/public data sources.
-4. Implement R1 reproducible OpenCV 5 baseline.
+1. Complete the Devpost draft fields that can be truthfully filled now; final video/report remain intentionally pending until measured results exist.
+2. Freeze the FOD-A train/validation split and establish the first real-data detector baseline.
+3. Expand agent evaluation scenarios and quantify verification value.
+4. Execute AWS Graviton4 + COOL validation when compute is available.
 
 ## Devpost copy currently approved as working text
 
@@ -47,6 +47,10 @@ Core behavior:
 **Elevator pitch**
 
 `An agentic OpenCV 5 system that inspects airfield video, re-checks uncertain hazards, and escalates verified risks through a human-in-the-loop AWS workflow.`
+
+**Repository**
+
+`https://github.com/pmartins87/AeroGuard`
 
 ## Guardrails
 
