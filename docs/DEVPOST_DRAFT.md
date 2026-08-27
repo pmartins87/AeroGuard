@@ -107,7 +107,7 @@ The final objective is simple to state and hard to fake: **AeroGuard Vision sees
 
 ## Try it out
 
-- Source code and reproducibility materials: https://github.com/pmartins87/OpenCV
+- Source code and reproducibility materials: https://github.com/pmartins87/AeroGuard
 
 ## Media plan
 
@@ -123,3 +123,68 @@ Do not use filler screenshots. Add final media after the real detector/dashboard
 ## Video plan
 
 The final video should be recorded after the first real-data and AWS/COOL benchmarks are frozen. It should show the problem, one complete agentic trace, measurable evaluation, failure handling/human control, AWS deployment, and the COOL comparison. Avoid a temporary public demo video that could weaken the final project presentation.
+
+## Additional info — working draft
+
+### Sponsor / Special Prizes
+
+Select both:
+- Best Use of COOL Award
+- Agentic Vision Award
+
+### Special Award Consideration
+
+Select both:
+- Best Use of COOL Award
+- Agentic Vision Award
+
+### Repository URL
+
+`https://github.com/pmartins87/AeroGuard`
+
+### Testing instructions
+
+```text
+AeroGuard Vision currently provides a deterministic OpenCV 5 end-to-end demo and automated tests.
+
+Requirements:
+- Python 3.11+
+- Git
+
+Steps:
+1. Clone the repository:
+   git clone https://github.com/pmartins87/AeroGuard.git
+   cd AeroGuard
+
+2. Create/activate a Python 3.11+ virtual environment.
+
+3. Install the project and test dependencies:
+   python -m pip install --upgrade pip
+   pip install -e ".[dev]"
+
+4. Run the automated test suite:
+   pytest -q
+
+5. Run the deterministic end-to-end demo:
+   aeroguard demo
+
+The demo generates a deterministic runway-like video fixture and analyzes it with the OpenCV 5 perception pipeline plus the bounded agent loop.
+
+Expected outputs are written under artifacts/:
+- fixture.mp4 — deterministic input video
+- annotated.mp4 — annotated output video
+- events.json — machine-readable agent/event trace
+- evidence/ — event-level evidence crops
+
+The project pins opencv-python-headless==5.0.0.93. GitHub Actions also verifies the OpenCV 5 version gate, tests, and deterministic demo.
+
+Real-data FOD-A detector evaluation and the AWS Graviton4/COOL benchmark are active build-phase work and will be included in the final technical report and judge demo before submission.
+```
+
+### Upload a File
+
+Do **not** upload the AWS grant proposal. This required field is reserved for the final competition technical report (or a final submission archive containing that report and judge-relevant artifacts) after measured results are frozen.
+
+### Working web endpoint
+
+Leave blank until a real judge-accessible endpoint exists. The competition permits a working web endpoint **or an arranged live screen-share demonstration**. The final choice will be frozen before submission.
