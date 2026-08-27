@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - ".github/workflows/foda-kaggle-mirror-verify.yml"
+      - "scripts/foda_inspect.py"
+      - "scripts/foda_make_dev_split.py"
+      - "src/aeroguard/datasets/**"
   workflow_dispatch:
 
 concurrency:
@@ -15,77 +18,106 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      EXPECTED_FODA_SHA256: 408af3ac5be8af399367a7a846c6bd720727391c2d89de17985321c27468dd87
+      OFFICIAL_ARCHIVE_SHA256: 408af3ac5be8af399367a7a846c6bd720727391c2d89de17985321c27468dd87
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install AeroGuard
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
       - name: Download public Kaggle mirror package
         run: |
-          mkdir -p /tmp/foda-mirror artifacts/foda_kaggle_verify
+          mkdir -p /tmp/foda-mirror/extracted artifacts/foda_kaggle_verify
           curl -L --fail --retry 3 \
             "https://www.kaggle.com/api/v1/datasets/download/kilogrand/foreign-object-debris-in-airports-fod-a-dataset" \
             -o /tmp/foda-mirror/kaggle_dataset.zip
           ls -lh /tmp/foda-mirror/kaggle_dataset.zip
           sha256sum /tmp/foda-mirror/kaggle_dataset.zip | tee artifacts/foda_kaggle_verify/kaggle_package.sha256
-          unzip -l /tmp/foda-mirror/kaggle_dataset.zip | tee artifacts/foda_kaggle_verify/package_listing.txt
+          unzip -l /tmp/foda-mirror/kaggle_dataset.zip > artifacts/foda_kaggle_verify/package_listing.txt
+          unzip -q /tmp/foda-mirror/kaggle_dataset.zip -d /tmp/foda-mirror/extracted
 
-      - name: Locate and verify the original Pascal VOC archive
+      - name: Inspect extracted mirror with canonical FOD-A parser
+        run: |
+          python scripts/foda_inspect.py /tmp/foda-mirror/extracted \
+            --output artifacts/foda_kaggle_verify/mirror_manifest.json
+
+      - name: Compare mirror against frozen official-corpus audit
         run: |
           python - <<'PY'
-          import hashlib
           import json
           import os
-          import zipfile
           from pathlib import Path
 
-          package = Path('/tmp/foda-mirror/kaggle_dataset.zip')
-          expected = os.environ['EXPECTED_FODA_SHA256']
-          target_name = 'FODPascalVOCFormat-V.2.1.zip'
-          outdir = Path('artifacts/foda_kaggle_verify')
-
-          with zipfile.ZipFile(package) as zf:
-              matches = [n for n in zf.namelist() if Path(n).name == target_name]
-              report = {
-                  'expected_official_sha256': expected,
-                  'nested_official_archive_found': bool(matches),
-                  'matches': matches,
-              }
-              if not matches:
-                  report['verified_identical_to_official_archive'] = False
-                  (outdir / 'verification.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
-                  raise SystemExit('mirror package does not contain the original Pascal VOC archive as a nested file')
-
-              member = matches[0]
-              dest = Path('/tmp/foda-mirror') / target_name
-              h = hashlib.sha256()
-              with zf.open(member) as src, dest.open('wb') as dst:
-                  while True:
-                      chunk = src.read(1024 * 1024)
-                      if not chunk:
-                          break
-                      h.update(chunk)
-                      dst.write(chunk)
-              actual = h.hexdigest()
-              report['member'] = member
-              report['actual_sha256'] = actual
-              report['verified_identical_to_official_archive'] = actual == expected
-              (outdir / 'verification.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
-              print(json.dumps(report, indent=2, sort_keys=True))
-              if actual != expected:
-                  raise SystemExit(f'mirror archive hash mismatch: {actual} != {expected}')
+          manifest = json.loads(Path('artifacts/foda_kaggle_verify/mirror_manifest.json').read_text())
+          summary = manifest['summary']
+          expected = {
+              'annotations': 33793,
+              'images': 33793,
+              'objects': 34472,
+              'labels_count': 31,
+              'small_object_count': 9852,
+              'small_object_fraction': 0.2857965885356237,
+              'small_object_threshold_area_px2': 1024,
+              'min_width': 300,
+              'max_width': 300,
+              'min_height': 300,
+              'max_height': 300,
+          }
+          labels = summary.get('labels', {})
+          actual = {
+              'annotations': summary['annotations'],
+              'images': summary['images'],
+              'objects': summary['objects'],
+              'labels_count': len(labels),
+              'small_object_count': summary['small_object_count'],
+              'small_object_fraction': summary['small_object_fraction'],
+              'small_object_threshold_area_px2': summary['small_object_threshold_area_px2'],
+              'min_width': summary['min_width'],
+              'max_width': summary['max_width'],
+              'min_height': summary['min_height'],
+              'max_height': summary['max_height'],
+          }
+          mismatches = {k: {'expected': expected[k], 'actual': actual[k]} for k in expected if actual[k] != expected[k]}
+          report = {
+              'schema': 'aeroguard.foda.mirror_equivalence.v1',
+              'mirror': 'Kaggle kilogrand/foreign-object-debris-in-airports-fod-a-dataset',
+              'official_archive_sha256_reference': os.environ['OFFICIAL_ARCHIVE_SHA256'],
+              'byte_identical_to_official_archive': False,
+              'reason_byte_identity_unavailable': 'Kaggle package contains the extracted FODPascalVOCFormat-V.2.1 tree rather than the original official zip container.',
+              'frozen_official_audit_expected': expected,
+              'mirror_actual': actual,
+              'structural_equivalence_pass': not mismatches,
+              'mismatches': mismatches,
+              'usage_policy': 'Temporary acquisition fallback only. Keep the official source URL and archive SHA as canonical provenance; re-check source split hashes against the official archive when Google Drive quota permits.',
+          }
+          out = Path('artifacts/foda_kaggle_verify/equivalence.json')
+          out.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+          print(out.read_text())
+          if mismatches:
+              raise SystemExit(f'mirror corpus differs from frozen official audit: {mismatches}')
           PY
 
-      - name: Audit source trainval/test splits from verified archive
+      - name: Freeze and validate source trainval/test split from structurally equivalent mirror
         run: |
-          mkdir -p /tmp/foda-mirror/extracted
-          unzip -q /tmp/foda-mirror/FODPascalVOCFormat-V.2.1.zip -d /tmp/foda-mirror/extracted
           python - <<'PY'
           import hashlib
           import json
           from pathlib import Path
 
           root = Path('/tmp/foda-mirror/extracted')
-          trainval = next(root.rglob('trainval.txt'))
-          test = next(root.rglob('test.txt'))
-          ann_dir = next(p for p in root.rglob('Annotations') if p.is_dir())
+          trainval_matches = list(root.rglob('ImageSets/Main/trainval.txt'))
+          test_matches = list(root.rglob('ImageSets/Main/test.txt'))
+          ann_matches = [p for p in root.rglob('Annotations') if p.is_dir()]
+          if len(trainval_matches) != 1 or len(test_matches) != 1 or len(ann_matches) != 1:
+              raise SystemExit(f'unexpected split/layout multiplicity: trainval={len(trainval_matches)} test={len(test_matches)} annotations={len(ann_matches)}')
+          trainval, test, ann_dir = trainval_matches[0], test_matches[0], ann_matches[0]
 
           def read_ids(path):
               raw = path.read_bytes()
@@ -97,6 +129,8 @@ jobs:
           ann_ids = {p.stem for p in ann_dir.glob('*.xml')}
           tr_set, te_set = set(tr), set(te)
           report = {
+              'schema': 'aeroguard.foda.source_split_audit.v1',
+              'provenance_status': 'provisional_from_structurally_equivalent_kaggle_mirror_pending_official-byte-source_recheck',
               'trainval_path': str(trainval.relative_to(root)),
               'test_path': str(test.relative_to(root)),
               'trainval_count': len(tr),
@@ -121,6 +155,14 @@ jobs:
           if report['missing_annotation_ids_from_split_union'] != 0 or report['split_ids_without_annotations'] != 0:
               raise SystemExit('source split union does not exactly cover annotation IDs')
           PY
+
+      - name: Derive deterministic development split inside source trainval only
+        run: |
+          python scripts/foda_make_dev_split.py /tmp/foda-mirror/extracted \
+            --seed 20260826 \
+            --val-fraction 0.20 \
+            --output-dir artifacts/foda_kaggle_verify/dev_split
+          cat artifacts/foda_kaggle_verify/dev_split/manifest.json
 
       - uses: actions/upload-artifact@v4
         if: always()
