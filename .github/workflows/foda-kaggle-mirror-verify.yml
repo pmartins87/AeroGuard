@@ -1,0 +1,130 @@
+name: foda-kaggle-mirror-verify
+
+on:
+  push:
+    paths:
+      - ".github/workflows/foda-kaggle-mirror-verify.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: foda-kaggle-mirror-verify
+  cancel-in-progress: true
+
+jobs:
+  verify-mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EXPECTED_FODA_SHA256: 408af3ac5be8af399367a7a846c6bd720727391c2d89de17985321c27468dd87
+    steps:
+      - name: Download public Kaggle mirror package
+        run: |
+          mkdir -p /tmp/foda-mirror artifacts/foda_kaggle_verify
+          curl -L --fail --retry 3 \
+            "https://www.kaggle.com/api/v1/datasets/download/kilogrand/foreign-object-debris-in-airports-fod-a-dataset" \
+            -o /tmp/foda-mirror/kaggle_dataset.zip
+          ls -lh /tmp/foda-mirror/kaggle_dataset.zip
+          sha256sum /tmp/foda-mirror/kaggle_dataset.zip | tee artifacts/foda_kaggle_verify/kaggle_package.sha256
+          unzip -l /tmp/foda-mirror/kaggle_dataset.zip | tee artifacts/foda_kaggle_verify/package_listing.txt
+
+      - name: Locate and verify the original Pascal VOC archive
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import zipfile
+          from pathlib import Path
+
+          package = Path('/tmp/foda-mirror/kaggle_dataset.zip')
+          expected = os.environ['EXPECTED_FODA_SHA256']
+          target_name = 'FODPascalVOCFormat-V.2.1.zip'
+          outdir = Path('artifacts/foda_kaggle_verify')
+
+          with zipfile.ZipFile(package) as zf:
+              matches = [n for n in zf.namelist() if Path(n).name == target_name]
+              report = {
+                  'expected_official_sha256': expected,
+                  'nested_official_archive_found': bool(matches),
+                  'matches': matches,
+              }
+              if not matches:
+                  report['verified_identical_to_official_archive'] = False
+                  (outdir / 'verification.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+                  raise SystemExit('mirror package does not contain the original Pascal VOC archive as a nested file')
+
+              member = matches[0]
+              dest = Path('/tmp/foda-mirror') / target_name
+              h = hashlib.sha256()
+              with zf.open(member) as src, dest.open('wb') as dst:
+                  while True:
+                      chunk = src.read(1024 * 1024)
+                      if not chunk:
+                          break
+                      h.update(chunk)
+                      dst.write(chunk)
+              actual = h.hexdigest()
+              report['member'] = member
+              report['actual_sha256'] = actual
+              report['verified_identical_to_official_archive'] = actual == expected
+              (outdir / 'verification.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+              print(json.dumps(report, indent=2, sort_keys=True))
+              if actual != expected:
+                  raise SystemExit(f'mirror archive hash mismatch: {actual} != {expected}')
+          PY
+
+      - name: Audit source trainval/test splits from verified archive
+        run: |
+          mkdir -p /tmp/foda-mirror/extracted
+          unzip -q /tmp/foda-mirror/FODPascalVOCFormat-V.2.1.zip -d /tmp/foda-mirror/extracted
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root = Path('/tmp/foda-mirror/extracted')
+          trainval = next(root.rglob('trainval.txt'))
+          test = next(root.rglob('test.txt'))
+          ann_dir = next(p for p in root.rglob('Annotations') if p.is_dir())
+
+          def read_ids(path):
+              raw = path.read_bytes()
+              ids = [line.strip() for line in raw.decode('utf-8').splitlines() if line.strip()]
+              return raw, ids
+
+          tr_raw, tr = read_ids(trainval)
+          te_raw, te = read_ids(test)
+          ann_ids = {p.stem for p in ann_dir.glob('*.xml')}
+          tr_set, te_set = set(tr), set(te)
+          report = {
+              'trainval_path': str(trainval.relative_to(root)),
+              'test_path': str(test.relative_to(root)),
+              'trainval_count': len(tr),
+              'test_count': len(te),
+              'trainval_unique': len(tr_set),
+              'test_unique': len(te_set),
+              'trainval_sha256': hashlib.sha256(tr_raw).hexdigest(),
+              'test_sha256': hashlib.sha256(te_raw).hexdigest(),
+              'overlap_count': len(tr_set & te_set),
+              'annotation_count': len(ann_ids),
+              'union_count': len(tr_set | te_set),
+              'missing_annotation_ids_from_split_union': len(ann_ids - (tr_set | te_set)),
+              'split_ids_without_annotations': len((tr_set | te_set) - ann_ids),
+          }
+          out = Path('artifacts/foda_kaggle_verify/source_split_audit.json')
+          out.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+          print(out.read_text())
+          if report['overlap_count'] != 0:
+              raise SystemExit('trainval/test overlap detected')
+          if report['trainval_unique'] != report['trainval_count'] or report['test_unique'] != report['test_count']:
+              raise SystemExit('duplicate IDs detected in source split')
+          if report['missing_annotation_ids_from_split_union'] != 0 or report['split_ids_without_annotations'] != 0:
+              raise SystemExit('source split union does not exactly cover annotation IDs')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foda-kaggle-mirror-verification
+          path: artifacts/foda_kaggle_verify/
+          retention-days: 30
