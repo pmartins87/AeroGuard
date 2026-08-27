@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AbstractSet
+from typing import AbstractSet
 
 from .types import AgentStep, Candidate, EventTrace
 
@@ -90,7 +90,6 @@ def _finalize(
         fail_tools,
     )
     _step(steps, tool="close_or_escalate_event", reason=reason, result=result)
-    # A finalizer failure never upgrades risk. Re-inspection is the deterministic safe fallback.
     if not result["ok"] and decision != "close":
         decision = "reinspect"
     return EventTrace(candidate=candidate, decision=decision, steps=tuple(steps))
