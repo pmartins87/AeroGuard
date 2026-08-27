@@ -6,8 +6,16 @@ on:
       - ".github/workflows/foda-probe.yml"
       - "src/aeroguard/datasets/**"
       - "scripts/foda_inspect.py"
+      - "scripts/foda_make_dev_split.py"
+      - "scripts/foda_export_coco.py"
       - "tests/test_foda.py"
+      - "tests/test_split.py"
+      - "tests/test_coco_export.py"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   inspect-foda-v21-voc:
@@ -56,8 +64,16 @@ jobs:
             --output artifacts/foda_manifest.json
           cat artifacts/foda_manifest.json
 
-      - name: Run dataset utility tests
-        run: pytest -q tests/test_foda.py
+      - name: Run dataset and split utility tests
+        run: pytest -q tests/test_foda.py tests/test_split.py tests/test_coco_export.py
+
+      - name: Freeze deterministic development split inside source trainval
+        run: |
+          python scripts/foda_make_dev_split.py /tmp/foda/extracted \
+            --seed 20260826 \
+            --val-fraction 0.20 \
+            --output-dir artifacts/foda_dev_split
+          cat artifacts/foda_dev_split/manifest.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -66,4 +82,7 @@ jobs:
             artifacts/foda_manifest.json
             artifacts_foda_archive_sha256.txt
             artifacts_foda_split_candidates.txt
+            artifacts/foda_dev_split/manifest.json
+            artifacts/foda_dev_split/train.txt
+            artifacts/foda_dev_split/val.txt
           retention-days: 30
