@@ -1,6 +1,11 @@
 import pytest
 
-from aeroguard.evaluation.detection import Box, evaluate_boxes, intersection_over_union
+from aeroguard.evaluation.detection import (
+    Box,
+    evaluate_boxes,
+    greedy_match_boxes,
+    intersection_over_union,
+)
 
 
 def test_iou_identity_and_disjoint():
@@ -28,6 +33,24 @@ def test_class_aware_one_to_one_matching():
     assert metrics.f1 == pytest.approx(0.8)
 
 
+def test_match_result_preserves_original_indices_for_failure_slices():
+    truth = [
+        Box("a", "small", 0, 0, 4, 4),
+        Box("a", "large", 20, 20, 50, 50),
+    ]
+    predictions = [
+        Box("a", "large", 20, 20, 50, 50, 0.60),
+        Box("a", "small", 80, 80, 90, 90, 0.95),
+        Box("a", "small", 0, 0, 4, 4, 0.80),
+        Box("a", "small", 0, 0, 4, 4, 0.10),
+    ]
+    result = greedy_match_boxes(truth, predictions, score_threshold=0.20)
+    assert result.matched_truth_indices == frozenset({0, 1})
+    assert result.matched_prediction_indices == frozenset({0, 2})
+    assert result.false_positive_prediction_indices == (1,)
+    assert result.false_negative_truth_indices == ()
+
+
 def test_score_threshold_changes_operating_point():
     truth = [Box("a", "fod", 0, 0, 10, 10)]
     predictions = [
@@ -40,6 +63,8 @@ def test_score_threshold_changes_operating_point():
     assert (high.tp, high.fp, high.fn) == (0, 0, 1)
 
 
-def test_invalid_iou_threshold_rejected():
+def test_invalid_thresholds_rejected():
     with pytest.raises(ValueError):
         evaluate_boxes([], [], iou_threshold=0.0)
+    with pytest.raises(ValueError):
+        greedy_match_boxes([], [], score_threshold=1.1)
