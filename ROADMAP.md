@@ -5,7 +5,7 @@ Goal: maximize probability of an **Overall Award** while remaining fully eligibl
 Final deadline: **2026-10-26 23:59 PT**.
 Internal target: **submit on 2026-10-25 with at least 24 hours of buffer**.
 
-Current position (2026-08-27): **R0 closed; R1/R2 active; the deterministic R3 Agentic Vision exit gate has already been met in parallel. The leakage-aware real-data split needed for the first learned baseline is now frozen.**
+Current position (2026-08-27): **R0 closed; R1/R2 active; the deterministic R3 Agentic Vision exit gate has already been met in parallel. The leakage-aware real-data split and scene-quality safety guardrails are now frozen, and the hardware-neutral R4 benchmark harness already executes in CI.**
 
 ## R0 - Competition intelligence and scope freeze | Aug 26-28
 
@@ -33,7 +33,7 @@ Deliverables:
 - [~] Connected-components baseline + persistence exists; learned detector OpenCV DNN interface and GPU train/eval path are implemented, while first trained FOD weights remain pending.
 - [x] CLI produces machine-readable event JSON, annotated output video, and event-level evidence crops.
 - [x] Unit/integration tests, including artifact generation.
-- [x] GitHub Actions OpenCV 5 smoke test. Core CI has continued to pass after the R2/R3 extensions.
+- [x] GitHub Actions OpenCV 5 smoke test. Core CI has continued to pass after the R2/R3 extensions except for deliberately caught/fixed integration regressions during active development.
 
 Exit gate: one command turns a known video into reproducible detections + evidence.
 
@@ -51,9 +51,10 @@ Deliverables:
 - [x] Deterministic group-disjoint train/validation/test split v1 frozen in run `33041421174`: 129 atomic groups, 23,502/5,092/5,199 images, zero partition overlap, all 33,793 IDs covered once.
 - [x] Primary split files and hashes documented in `docs/R2_FODA_SEQUENCE_SPLIT_V1.md`.
 - [x] YOLOX-tiny -> decoded ONNX -> OpenCV 5 DNN numerical contract passed in run `33037208949`.
+- [x] Full-corpus scene-quality profile completed in OpenCV 5, run `33042687798`, covering all 33,793 images.
+- [x] Conservative scene-quality reacquisition policy implemented for severe darkness, collapsed dynamic range, extreme blur/low information and clipping; unusable frames cannot create/escalate FOD events or bridge temporal persistence. See `docs/R2_SCENE_QUALITY.md`.
 - [~] Primary real-data detection path engineered: sequence-aware FOD-A preparation, YOLOX-tiny training runbook, ONNX export, OpenCV 5 DNN inference, metric/failure-analysis evaluator. **First trained checkpoint/metrics now become the immediate critical gate.**
 - [ ] Temporal verification and multi-frame tracking beyond simple persistence on real detector outputs.
-- [ ] Scene-quality checks (blur, darkness, occlusion/compression where feasible).
 - [ ] Confidence calibration/threshold policy from real validation data.
 - [ ] Baseline precision/recall/F1/AP and failure-case set.
 - [ ] Dedicated small-object performance result on the frozen leakage-aware test.
@@ -87,6 +88,7 @@ Evidence:
 - [x] Judge-visible evidence crops and annotated video are generated for the deterministic trace.
 - [x] Deterministic tool-failure fallback implemented; failures never upgrade risk.
 - [x] Frozen deterministic scenario suite contains 14 cases and requires 100% expected-decision success.
+- [x] Gross scene-quality failures now create an explicit reacquisition path before the agent can escalate visual evidence.
 - [ ] Feed real learned-detector outputs into this controller and measure false-alert reduction.
 - [ ] Model-backed orchestrator experiment (e.g. Bedrock) only if it improves measured task success.
 
@@ -99,10 +101,11 @@ Status: **deterministic exit gate met ahead of schedule.** Real-data integration
 Deliverables:
 - [ ] Meaningful component deployed on AWS.
 - [x] Graviton4 + COOL target architecture documented.
+- [x] Hardware-neutral application-level benchmark harness implemented with frozen input hashes, runtime/build fingerprint, warmup, repeated runs, p50/p95 and deterministic workload checks. CI smoke run proves reproducibility only; it is not a COOL performance claim.
+- [x] Benchmark protocol documented in `docs/R4_BENCHMARK_PROTOCOL.md`.
 - [ ] COOL environment/version captured from a real run.
-- [ ] Benchmark harness compares COOL against vanilla OpenCV 5.
-- [ ] Same inputs, comparable hardware/configuration, repeated runs.
-- [ ] Latency, throughput, utilization and estimated cost reported.
+- [ ] Actual Graviton4 benchmark compares COOL against vanilla OpenCV 5 using the same workload/input/model.
+- [ ] Latency, throughput, utilization and estimated cost reported on comparable AWS hardware.
 - [ ] Evidence that COOL executes the claimed core workload.
 - [ ] Observability/logging enabled.
 
