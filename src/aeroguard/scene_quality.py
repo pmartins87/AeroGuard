@@ -27,15 +27,15 @@ class SceneQualityMetrics:
 class SceneQualityPolicy:
     """Conservative reacquisition thresholds frozen from the FOD-A profile.
 
-    The defaults sit just outside the observed FOD-A support rather than using
-    ordinary dark/dim imagery as failure examples. They are safety guardrails,
-    not detector-confidence thresholds.
+    The defaults are deliberately beyond the observed FOD-A support and only
+    reject severe acquisition failures. They are safety guardrails, not detector
+    confidence thresholds or a substitute for learned-model calibration.
     """
 
     min_mean_luma: float = 60.0
-    min_dynamic_range: float = 8.0
+    min_dynamic_range: float = 5.0
     min_laplacian_variance: float = 9.0
-    min_entropy_bits: float = 3.5
+    min_entropy_bits: float = 2.5
     max_dark_fraction: float = 0.18
     max_clipped_high_fraction: float = 0.07
 
