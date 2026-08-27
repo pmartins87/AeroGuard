@@ -53,24 +53,42 @@ jobs:
           python scripts/foda_scene_quality_profile.py /tmp/foda-quality/extracted \
             --output artifacts/foda_scene_quality/profile.json
 
-      - name: Verify corpus and profile gates
+      - name: Verify corpus, profile and conservative guardrail gates
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
+          from aeroguard.scene_quality import SceneQualityPolicy
+
           payload = json.loads(Path('artifacts/foda_scene_quality/profile.json').read_text())
           assert payload['opencv_version'].startswith('5.0.0')
           assert payload['image_count'] == 33793
           assert payload['overall']['count'] == 33793
-          for metric in ('mean_luma', 'dynamic_range', 'laplacian_variance', 'dark_fraction', 'entropy_bits'):
-              assert metric in payload['overall']['metrics']
+          metrics = payload['overall']['metrics']
+          for metric in ('mean_luma', 'dynamic_range', 'laplacian_variance', 'dark_fraction', 'clipped_high_fraction', 'entropy_bits'):
+              assert metric in metrics
+
+          policy = SceneQualityPolicy()
+          # The reacquisition gate is intentionally outside observed FOD-A support:
+          # all 33,793 in-distribution frames must remain usable under v1 policy.
+          assert metrics['mean_luma']['min'] >= policy.min_mean_luma
+          assert metrics['dynamic_range']['min'] >= policy.min_dynamic_range
+          assert metrics['laplacian_variance']['min'] >= policy.min_laplacian_variance
+          assert metrics['entropy_bits']['min'] >= policy.min_entropy_bits
+          assert metrics['dark_fraction']['max'] <= policy.max_dark_fraction
+          assert metrics['clipped_high_fraction']['max'] <= policy.max_clipped_high_fraction
+
           print(json.dumps({
               'image_count': payload['image_count'],
-              'mean_luma_q001': payload['overall']['metrics']['mean_luma']['quantiles']['q0.001'],
-              'laplacian_q001': payload['overall']['metrics']['laplacian_variance']['quantiles']['q0.001'],
-              'dynamic_range_q001': payload['overall']['metrics']['dynamic_range']['quantiles']['q0.001'],
-              'entropy_q001': payload['overall']['metrics']['entropy_bits']['quantiles']['q0.001'],
-          }, indent=2))
+              'policy_in_distribution_failures': 0,
+              'observed_min_mean_luma': metrics['mean_luma']['min'],
+              'observed_min_dynamic_range': metrics['dynamic_range']['min'],
+              'observed_min_laplacian_variance': metrics['laplacian_variance']['min'],
+              'observed_min_entropy_bits': metrics['entropy_bits']['min'],
+              'observed_max_dark_fraction': metrics['dark_fraction']['max'],
+              'observed_max_clipped_high_fraction': metrics['clipped_high_fraction']['max'],
+              'policy': policy.__dict__,
+          }, indent=2, sort_keys=True))
           PY
 
       - uses: actions/upload-artifact@v4
