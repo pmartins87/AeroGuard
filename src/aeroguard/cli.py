@@ -8,6 +8,7 @@ import cv2
 
 from .agent import run_agent
 from .fixture import generate_fixture
+from .scene_quality import SceneQualityPolicy, assess_scene_quality
 from .vision import attach_persistence, build_reference, crop_with_margin, detect_candidates
 
 
@@ -33,6 +34,22 @@ def _draw_event(frame, candidate, decision: str):
         0.48,
         color,
         1,
+        cv2.LINE_AA,
+    )
+    return annotated
+
+
+def _draw_scene_quality_failure(frame, reasons: tuple[str, ...]):
+    annotated = frame.copy()
+    label = "REACQUIRE: " + ",".join(reasons[:2])
+    cv2.putText(
+        annotated,
+        label,
+        (12, 28),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        (0, 190, 255),
+        2,
         cv2.LINE_AA,
     )
     return annotated
@@ -87,12 +104,31 @@ def analyze_video(
 
     history: list[list] = []
     traces = []
+    scene_quality_failures = []
     frame_index = len(frames)
     evidence_counter = 0
+    policy = SceneQualityPolicy()
     while True:
         ok, frame = cap.read()
         if not ok:
             break
+
+        quality = assess_scene_quality(frame, policy)
+        if not quality.usable:
+            scene_quality_failures.append({
+                "frame_index": frame_index,
+                "action": "reacquire",
+                **quality.as_dict(),
+            })
+            if writer is not None:
+                writer.write(_draw_scene_quality_failure(frame, quality.reasons))
+            # An unusable frame breaks temporal continuity instead of allowing a
+            # later candidate to inherit persistence across missing evidence.
+            history.append([])
+            history = history[-6:]
+            frame_index += 1
+            continue
+
         raw = detect_candidates(frame, reference, frame_index)
         current = [attach_persistence(c, history) for c in raw]
         annotated = frame.copy()
@@ -127,6 +163,8 @@ def analyze_video(
         "opencv_version": cv2.__version__,
         "annotated_video": str(output_video) if output_video is not None else None,
         "evidence_dir": str(evidence_path) if evidence_path is not None else None,
+        "scene_quality_policy": policy.__dict__,
+        "scene_quality_failures": scene_quality_failures,
         "events": traces,
     }
     output_json = Path(output_json)
@@ -165,7 +203,11 @@ def main() -> None:
             output_video=args.output_video,
             evidence_dir=args.evidence_dir,
         )
-        print(json.dumps({"events": len(payload["events"]), "output": args.output_json}))
+        print(json.dumps({
+            "events": len(payload["events"]),
+            "scene_quality_failures": len(payload["scene_quality_failures"]),
+            "output": args.output_json,
+        }))
     elif args.command == "demo":
         generate_fixture(args.video)
         payload = analyze_video(
@@ -174,7 +216,11 @@ def main() -> None:
             output_video=args.output_video,
             evidence_dir=args.evidence_dir,
         )
-        print(json.dumps({"events": len(payload["events"]), "output": args.output_json}))
+        print(json.dumps({
+            "events": len(payload["events"]),
+            "scene_quality_failures": len(payload["scene_quality_failures"]),
+            "output": args.output_json,
+        }))
 
 
 if __name__ == "__main__":
