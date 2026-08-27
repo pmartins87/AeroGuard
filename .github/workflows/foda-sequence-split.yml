@@ -1,0 +1,80 @@
+name: foda-sequence-split
+
+on:
+  push:
+    paths:
+      - ".github/workflows/foda-sequence-split.yml"
+      - "scripts/foda_make_sequence_split.py"
+      - "src/aeroguard/datasets/group_split.py"
+      - "tests/test_group_split.py"
+  workflow_dispatch:
+
+concurrency:
+  group: foda-sequence-split
+  cancel-in-progress: true
+
+jobs:
+  build-split:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install AeroGuard
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Test group optimizer
+        run: pytest -q tests/test_group_split.py
+
+      - name: Download structurally verified public FOD-A mirror
+        run: |
+          mkdir -p /tmp/foda/extracted artifacts/foda_sequence_split
+          curl -L --fail --retry 3 \
+            "https://www.kaggle.com/api/v1/datasets/download/kilogrand/foreign-object-debris-in-airports-fod-a-dataset" \
+            -o /tmp/foda/dataset.zip
+          unzip -q /tmp/foda/dataset.zip -d /tmp/foda/extracted
+
+      - name: Build deterministic leakage-aware split
+        run: |
+          python scripts/foda_make_sequence_split.py /tmp/foda/extracted \
+            --output-dir artifacts/foda_sequence_split \
+            --seed 20260826 \
+            --visual-threshold 0.10 \
+            --iterations 50000
+
+      - name: Verify frozen gates
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('artifacts/foda_sequence_split/manifest.json').read_text())
+          assert manifest['coverage']['annotation_ids'] == 33793, manifest['coverage']
+          assert manifest['coverage']['covered_once'] == 33793, manifest['coverage']
+          assert manifest['coverage']['train_val_overlap'] == 0
+          assert manifest['coverage']['train_test_overlap'] == 0
+          assert manifest['coverage']['val_test_overlap'] == 0
+          assert sum(v['objects'] for v in manifest['files'].values()) == 34472
+          assert manifest['assignment_summary']['labels_missing_from_train'] == []
+          assert manifest['group_count'] >= 122
+          print(json.dumps({
+              'group_count': manifest['group_count'],
+              'boundary_reasons': manifest['boundary_reasons'],
+              'files': manifest['files'],
+              'assignment_summary': manifest['assignment_summary'],
+              'coverage': manifest['coverage'],
+          }, indent=2, sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foda-sequence-split
+          path: artifacts/foda_sequence_split/
+          retention-days: 30
