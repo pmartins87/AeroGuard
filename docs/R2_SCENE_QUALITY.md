@@ -32,13 +32,13 @@ The source categorization metadata uses light indices `0=Bright`, `1=Dim`, `2=Da
 `SceneQualityPolicy` currently uses:
 
 - `mean_luma >= 60.0`
-- `dynamic_range >= 5.0`
+- `dynamic_range >= 8.0`
 - `laplacian_variance >= 9.0`
-- `entropy_bits >= 2.5`
+- `entropy_bits >= 3.5`
 - `dark_fraction <= 0.18`
 - `clipped_high_fraction <= 0.07`
 
-The thresholds sit beyond the observed FOD-A support and intentionally target only severe failures. Dynamic-range and entropy thresholds are additionally loose enough that the deterministic synthetic fixture remains usable; the gate should not confuse a deliberately simple test scene with sensor failure.
+Each threshold sits just beyond the corresponding observed FOD-A extreme, so the full current corpus remains in-support while clearly worse acquisition failures are rejected. The deterministic fixture now contains stable asphalt-like spatial texture before MP4 encoding, which keeps the synthetic test scene realistic enough to exercise these same checks rather than weakening the production guardrail for a flat test pattern.
 
 The workflow gates the policy against the entire FOD-A corpus so a future threshold change cannot silently reject in-distribution benchmark images.
 
