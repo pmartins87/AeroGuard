@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
-from aeroguard.datasets.foda import sha256_file, summarize_voc_dataset, verify_split_members
+from aeroguard.datasets.foda import discover_source_splits, sha256_file, summarize_voc_dataset
 
 
 def main() -> int:
@@ -21,7 +21,7 @@ def main() -> int:
         "source_version": "2.1 Pascal VOC",
         "dataset_root": str(args.dataset_root.resolve()),
         "summary": summary.as_dict(),
-        "source_splits": verify_split_members(args.dataset_root),
+        "source_splits": discover_source_splits(args.dataset_root),
     }
     if args.archive is not None:
         payload["archive"] = {
