@@ -9,7 +9,7 @@ from pathlib import Path
 import cv2
 
 from aeroguard.agent import run_agent
-from aeroguard.benchmarking import runtime_fingerprint, sha256_file, timing_summary
+from aeroguard.benchmarking import numeric_summary, runtime_fingerprint, sha256_file, timing_summary
 from aeroguard.scene_quality import measure_scene_quality
 from aeroguard.vision import attach_persistence, build_reference, detect_candidates
 
@@ -116,7 +116,7 @@ def main() -> int:
         "runtime": runtime_fingerprint(),
         "summary": {
             "ms_per_frame": timing_summary(ms_per_frame),
-            "frames_per_second": timing_summary(fps),
+            "frames_per_second": numeric_summary(fps),
             "candidate_counts": [run["candidates"] for run in runs],
             "agent_event_counts": [run["agent_events"] for run in runs],
         },
@@ -130,6 +130,7 @@ def main() -> int:
         "input_sha256": payload["input"]["sha256"],
         "p50_ms_per_frame": payload["summary"]["ms_per_frame"]["p50_ms"],
         "p95_ms_per_frame": payload["summary"]["ms_per_frame"]["p95_ms"],
+        "p50_frames_per_second": payload["summary"]["frames_per_second"]["p50"],
     }, sort_keys=True))
     return 0
 
