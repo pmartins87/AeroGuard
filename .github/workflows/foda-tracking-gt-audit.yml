@@ -1,0 +1,76 @@
+name: foda-tracking-gt-audit
+
+on:
+  push:
+    paths:
+      - ".github/workflows/foda-tracking-gt-audit.yml"
+      - "scripts/foda_tracking_gt_audit.py"
+      - "scripts/foda_make_sequence_split.py"
+      - "src/aeroguard/tracking.py"
+  workflow_dispatch:
+
+concurrency:
+  group: foda-tracking-gt-audit
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install AeroGuard
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Verify tracking tests
+        run: pytest -q tests/test_tracking.py
+
+      - name: Download structurally verified public FOD-A mirror
+        run: |
+          mkdir -p /tmp/foda-track/extracted artifacts/foda_tracking_gt
+          curl -L --fail --retry 3 \
+            "https://www.kaggle.com/api/v1/datasets/download/kilogrand/foreign-object-debris-in-airports-fod-a-dataset" \
+            -o /tmp/foda-track/kaggle_dataset.zip
+          sha256sum /tmp/foda-track/kaggle_dataset.zip | tee artifacts/foda_tracking_gt/kaggle_package.sha256
+          unzip -q /tmp/foda-track/kaggle_dataset.zip -d /tmp/foda-track/extracted
+
+      - name: Audit GT temporal geometry
+        run: |
+          python scripts/foda_tracking_gt_audit.py /tmp/foda-track/extracted \
+            --output artifacts/foda_tracking_gt/audit.json \
+            --visual-threshold 0.10 \
+            --min-hits 3 \
+            --max-missed-frames 1 \
+            --iou-grid 0.05,0.10,0.20,0.30,0.40,0.50
+
+      - name: Verify evidence contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('artifacts/foda_tracking_gt/audit.json').read_text())
+          assert data['schema'] == 'aeroguard.foda.gt_tracking_audit.v1'
+          assert data['dataset_images'] == 33793
+          assert data['sequence_groups'] == 129
+          assert len(data['audits']) == 6
+          assert data['gt_geometry_selected']['observations'] == 34472
+          for item in data['audits']:
+              assert 0.0 <= item['matched_observation_fraction'] <= 1.0
+              assert item['fragmentation_excess_tracks'] >= 0
+          print(json.dumps(data['gt_geometry_selected'], indent=2, sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foda-tracking-gt-audit
+          path: artifacts/foda_tracking_gt/
+          retention-days: 30
