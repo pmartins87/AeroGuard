@@ -1,0 +1,75 @@
+name: benchmark-smoke
+
+on:
+  push:
+    paths:
+      - ".github/workflows/benchmark-smoke.yml"
+      - "scripts/benchmark_opencv_core.py"
+      - "src/aeroguard/benchmarking.py"
+      - "src/aeroguard/scene_quality.py"
+      - "src/aeroguard/vision.py"
+      - "src/aeroguard/agent.py"
+      - "src/aeroguard/fixture.py"
+      - "tests/test_benchmarking.py"
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install AeroGuard
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Test benchmark helpers
+        run: pytest -q tests/test_benchmarking.py tests/test_scene_quality.py
+
+      - name: Generate deterministic benchmark fixture
+        run: python -m aeroguard.cli generate-fixture --output artifacts/benchmark_fixture.mp4
+
+      - name: Run application-level OpenCV benchmark smoke
+        run: |
+          python scripts/benchmark_opencv_core.py \
+            --video artifacts/benchmark_fixture.mp4 \
+            --output artifacts/benchmark_smoke.json \
+            --warmup-runs 1 \
+            --repeats 3
+
+      - name: Verify benchmark evidence contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('artifacts/benchmark_smoke.json').read_text())
+          assert data['schema'] == 'aeroguard.benchmark.opencv_core.v1'
+          assert data['runtime']['opencv'].startswith('5.0.0')
+          assert data['input']['processed_frames_per_repeat'] == 70
+          assert data['summary']['ms_per_frame']['count'] == 3
+          assert len(set(data['summary']['candidate_counts'])) == 1
+          assert len(set(data['summary']['agent_event_counts'])) == 1
+          print(json.dumps({
+              'machine': data['runtime']['machine'],
+              'opencv': data['runtime']['opencv'],
+              'p50_ms_per_frame': data['summary']['ms_per_frame']['p50_ms'],
+              'p95_ms_per_frame': data['summary']['ms_per_frame']['p95_ms'],
+              'candidate_counts': data['summary']['candidate_counts'],
+              'agent_event_counts': data['summary']['agent_event_counts'],
+          }, indent=2))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-smoke
+          path: |
+            artifacts/benchmark_smoke.json
+            artifacts/benchmark_fixture.mp4
+          retention-days: 30
