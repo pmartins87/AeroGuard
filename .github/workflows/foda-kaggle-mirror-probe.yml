@@ -1,0 +1,56 @@
+name: foda-kaggle-mirror-probe
+
+on:
+  push:
+    paths:
+      - ".github/workflows/foda-kaggle-mirror-probe.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: foda-kaggle-mirror-probe
+  cancel-in-progress: true
+
+jobs:
+  probe-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch public Kaggle dataset metadata
+        run: |
+          mkdir -p artifacts/foda_kaggle_probe
+          curl -L --fail --retry 3 \
+            "https://www.kaggle.com/api/v1/datasets/view/kilogrand/foreign-object-debris-in-airports-fod-a-dataset" \
+            -o artifacts/foda_kaggle_probe/metadata.json
+
+      - name: Summarize files without downloading the dataset
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          src = Path("artifacts/foda_kaggle_probe/metadata.json")
+          data = json.loads(src.read_text(encoding="utf-8"))
+          files = data.get("resources") or data.get("files") or []
+          summary = {
+              "ref": data.get("ref"),
+              "title": data.get("title"),
+              "licenseName": data.get("licenseName"),
+              "totalBytes": data.get("totalBytes"),
+              "file_count": len(files),
+              "files": [],
+          }
+          for item in files:
+              summary["files"].append({
+                  "name": item.get("name") or item.get("path"),
+                  "bytes": item.get("totalBytes") or item.get("size"),
+              })
+          out = Path("artifacts/foda_kaggle_probe/summary.json")
+          out.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(out.read_text(encoding="utf-8"))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: foda-kaggle-mirror-metadata
+          path: artifacts/foda_kaggle_probe/
+          retention-days: 30
