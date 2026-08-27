@@ -1,6 +1,6 @@
 import numpy as np
 
-from aeroguard.scene_quality import measure_scene_quality
+from aeroguard.scene_quality import assess_scene_quality, measure_scene_quality
 
 
 def test_flat_dark_frame_has_zero_dynamic_range_and_entropy():
@@ -30,3 +30,22 @@ def test_float_input_is_clipped_deterministically():
     assert 0.0 <= metrics.mean_luma <= 255.0
     assert 0.0 <= metrics.dark_fraction <= 1.0
     assert 0.0 <= metrics.clipped_high_fraction <= 1.0
+
+
+def test_flat_black_frame_is_rejected_for_reacquisition():
+    frame = np.zeros((64, 64, 3), dtype=np.uint8)
+    assessment = assess_scene_quality(frame)
+    assert not assessment.usable
+    assert "extreme_darkness" in assessment.reasons
+    assert "collapsed_dynamic_range" in assessment.reasons
+    assert "extreme_blur" in assessment.reasons
+    assert "low_information" in assessment.reasons
+
+
+def test_textured_midrange_frame_is_usable():
+    rng = np.random.default_rng(20260827)
+    base = rng.normal(128.0, 30.0, size=(96, 96)).clip(0, 255).astype(np.uint8)
+    frame = np.dstack([base, base, base])
+    assessment = assess_scene_quality(frame)
+    assert assessment.usable
+    assert assessment.reasons == ()
