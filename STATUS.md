@@ -35,49 +35,55 @@ Last updated: 2026-08-26
 - [x] GitHub Actions CI verifies OpenCV 5, tests, and deterministic demo.
 - [x] FOD-A acquisition target frozen to official v2.1 Pascal VOC, 300x300.
 - [x] FOD-A VOC parser, fractional-box support, strict validation, dataset summarizer, SHA-256 helper, and inspection CLI added.
-- [x] FOD-A provenance probe completed successfully in run **32994883456**.
-- [x] Official FOD-A archive frozen at **432,133,110 bytes**, SHA-256 **`408af3ac5be8af399367a7a846c6bd720727391c2d89de17985321c27468dd87`**.
-- [x] Real corpus verified: **18,742 annotated images, 31,493 objects, 31 source labels, 300x300 images**.
-- [x] Small-object risk quantified: **46.43%** of objects have bounding-box area below 1,024 px^2.
-- [x] Source taxonomy quirks identified and raw labels preserved pending an explicit canonicalization decision.
+- [x] FOD-A archive SHA-256 frozen at **`408af3ac5be8af399367a7a846c6bd720727391c2d89de17985321c27468dd87`**.
+- [x] Retained provenance artifact audited; earlier provisional corpus counts were found inconsistent and explicitly superseded in `docs/FODA_AUDIT_20260826.md`.
+- [x] Corrected verified corpus: **33,793 annotated images, 34,472 objects, 31 source labels, 300x300 images**.
+- [x] Corrected small-object slice: **28.58%** of objects have bounding-box area below 1,024 px².
+- [x] Physical source split filenames discovered: `VOC2007/ImageSets/Main/trainval.txt` and `test.txt`.
+- [x] Split inspector upgraded to record SHA-256, duplicate IDs, overlap, missing IDs, extra IDs, and full annotation coverage.
+- [x] Deterministic class-aware development split builder implemented; it derives validation only inside source `trainval.txt` and leaves source `test.txt` untouched.
 - [x] Deterministic class-aware IoU / precision / recall / F1 evaluation primitives implemented with tests.
 - [x] Devpost Project Overview saved.
 - [x] Devpost Project Details story and technology/link plan drafted and preserved in `docs/DEVPOST_DRAFT.md`.
+- [x] Devpost working copy corrected to the audited FOD-A corpus facts before final submission.
 - [x] Devpost finalization requirements captured into `docs/FINAL_SUBMISSION_CHECKLIST.md`.
 
 ### ACTIVE
 
-- [ ] Complete Devpost draft project profile.
+- [ ] Complete Devpost draft project profile only when final video/report artifacts exist.
 - [ ] Project Details remains intentionally incomplete until the required final demo video is available.
 - [ ] Additional Info remains intentionally incomplete until the final technical report and final endpoint/live-demo choice are available.
 - [ ] Final Submit page reached; **do not submit yet**. Terms acceptance and final submission remain pending until the evidence package is judge-ready.
-- [ ] Discover and freeze the exact source train/validation split filenames and counts inside FOD-A v2.1.
+- [ ] Complete the automated hash/coverage audit of source `trainval.txt` and `test.txt`; current `foda-probe` jobs are queued after rapid repository updates.
+- [ ] Generate and freeze the deterministic development train/validation manifest from source `trainval.txt` once the source split gate passes.
 - [ ] Establish the first real-data FOD detection baseline.
-- [ ] Report first real-data precision/recall/F1 plus a dedicated small-object slice.
+- [ ] Report first real-data precision/recall/F1/AP as appropriate plus a dedicated small-object slice.
 - [ ] Expand deterministic agent scenarios beyond the single positive fixture.
 
 ### BLOCKERS
 
-None currently. AWS grant decision is external and does not block local/GitHub development.
+No project-design blocker. GitHub Actions currently has a queue of CI/provenance jobs created by the rapid sequence of audit commits; development can continue while they execute. AWS grant decision is external and non-blocking.
 
 ## Immediate next actions
 
 1. Leave Devpost in draft state; use `docs/FINAL_SUBMISSION_CHECKLIST.md` as the final gate.
-2. Finish FOD-A source split discovery; the workflow records candidate train/validation/test/ImageSets files as provenance artifacts.
-3. Freeze any source-label canonicalization policy without altering raw provenance.
-4. Build the first learned or otherwise credible real-data detector baseline on the source split.
-5. Measure precision/recall/F1 at frozen operating points, with separate small-object results.
+2. Wait for the newest FOD-A provenance workflow to complete, then freeze exact `trainval.txt` / `test.txt` counts, hashes, zero-overlap, and full annotation coverage.
+3. Run `scripts/foda_make_dev_split.py` only after that gate passes; freeze the derived train/validation IDs and hashes while preserving source `test.txt` as final held-out data.
+4. Add a model-agnostic real-data detector training/evaluation scaffold and establish the first measured baseline.
+5. Measure precision/recall/F1/AP at frozen operating points, with separate small-object results.
 6. Feed real detector outputs into the bounded agent verification loop and quantify false-alert reduction.
 7. Expand agent scenarios and generate the workflow/evidence artifacts required for the Agentic Vision award.
 8. When AWS grant/credits arrive, execute the Graviton4 + COOL benchmark plan; no development waits on that decision.
-9. Only after the measured evidence exists, finalize the technical report, <=5-minute demo video, architecture diagrams, judge-accessible endpoint/live-demo path, and Devpost media.
+9. Only after measured evidence exists, finalize the technical report, <=5-minute demo video, architecture diagrams, judge-accessible endpoint/live-demo path, and Devpost media.
 
 ## Verified evidence
 
 - Prior clean OpenCV 5 CI reference: `https://github.com/pmartins87/AeroGuard/actions/runs/32980264697`
-- Successful FOD-A provenance run: `https://github.com/pmartins87/AeroGuard/actions/runs/32994883456`
+- Retained FOD-A provenance workflows: `32994883456` and `32995768875`
 - FOD-A verified archive SHA-256: `408af3ac5be8af399367a7a846c6bd720727391c2d89de17985321c27468dd87`
-- FOD-A verified corpus: 18,742 annotated images / 31,493 objects / 31 labels.
+- FOD-A corrected verified corpus: **33,793 annotated images / 34,472 objects / 31 labels**.
+- Audit/correction record: `docs/FODA_AUDIT_20260826.md`.
+- Upstream FOD-A README confirms v2.1 Pascal VOC at 300x300 and the supplied split package.
 
 ## Key success metrics
 
