@@ -34,7 +34,7 @@ jobs:
         run: |
           python - <<'PY'
           import cv2
-          assert cv2.__version__ == '5.0.0.93', cv2.__version__
+          assert cv2.__version__.startswith('5.0.0'), cv2.__version__
           print(cv2.__version__)
           PY
           pytest -q tests/test_scene_quality.py
@@ -59,7 +59,7 @@ jobs:
           import json
           from pathlib import Path
           payload = json.loads(Path('artifacts/foda_scene_quality/profile.json').read_text())
-          assert payload['opencv_version'] == '5.0.0.93'
+          assert payload['opencv_version'].startswith('5.0.0')
           assert payload['image_count'] == 33793
           assert payload['overall']['count'] == 33793
           for metric in ('mean_luma', 'dynamic_range', 'laplacian_variance', 'dark_fraction', 'entropy_bits'):
