@@ -1,0 +1,81 @@
+name: foda-scene-quality-profile
+
+on:
+  push:
+    paths:
+      - ".github/workflows/foda-scene-quality-profile.yml"
+      - "scripts/foda_scene_quality_profile.py"
+      - "src/aeroguard/scene_quality.py"
+      - "tests/test_scene_quality.py"
+  workflow_dispatch:
+
+concurrency:
+  group: foda-scene-quality-profile
+  cancel-in-progress: true
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install AeroGuard
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Verify scene-quality unit tests under OpenCV 5
+        run: |
+          python - <<'PY'
+          import cv2
+          assert cv2.__version__ == '5.0.0.93', cv2.__version__
+          print(cv2.__version__)
+          PY
+          pytest -q tests/test_scene_quality.py
+
+      - name: Download structurally verified public FOD-A mirror
+        run: |
+          mkdir -p /tmp/foda-quality/extracted artifacts/foda_scene_quality
+          curl -L --fail --retry 3 \
+            "https://www.kaggle.com/api/v1/datasets/download/kilogrand/foreign-object-debris-in-airports-fod-a-dataset" \
+            -o /tmp/foda-quality/kaggle_dataset.zip
+          sha256sum /tmp/foda-quality/kaggle_dataset.zip | tee artifacts/foda_scene_quality/kaggle_package.sha256
+          unzip -q /tmp/foda-quality/kaggle_dataset.zip -d /tmp/foda-quality/extracted
+
+      - name: Profile complete corpus
+        run: |
+          python scripts/foda_scene_quality_profile.py /tmp/foda-quality/extracted \
+            --output artifacts/foda_scene_quality/profile.json
+
+      - name: Verify corpus and profile gates
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path('artifacts/foda_scene_quality/profile.json').read_text())
+          assert payload['opencv_version'] == '5.0.0.93'
+          assert payload['image_count'] == 33793
+          assert payload['overall']['count'] == 33793
+          for metric in ('mean_luma', 'dynamic_range', 'laplacian_variance', 'dark_fraction', 'entropy_bits'):
+              assert metric in payload['overall']['metrics']
+          print(json.dumps({
+              'image_count': payload['image_count'],
+              'mean_luma_q001': payload['overall']['metrics']['mean_luma']['quantiles']['q0.001'],
+              'laplacian_q001': payload['overall']['metrics']['laplacian_variance']['quantiles']['q0.001'],
+              'dynamic_range_q001': payload['overall']['metrics']['dynamic_range']['quantiles']['q0.001'],
+              'entropy_q001': payload['overall']['metrics']['entropy_bits']['quantiles']['q0.001'],
+          }, indent=2))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foda-scene-quality-profile
+          path: artifacts/foda_scene_quality/
+          retention-days: 30
