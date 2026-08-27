@@ -37,9 +37,11 @@ The pipeline emits machine-readable event JSON, annotated video, and event-level
 
 To keep development testable from the beginning, we created deterministic synthetic video fixtures and GitHub Actions CI that verify the pinned OpenCV 5 environment, unit tests, and a repeatable end-to-end demo.
 
-For real-data evaluation, we froze the official **FOD-A v2.1 Pascal VOC 300x300** dataset as the primary corpus and recorded its provenance and checksum. Our automated inspection verified **18,742 annotated images, 31,493 annotated objects, and 31 source labels**. The data also revealed a central technical challenge: **46.43% of annotated objects occupy less than 1,024 px²**, making small-object performance a first-class evaluation slice.
+For real-data evaluation, we froze the official **FOD-A v2.1 Pascal VOC 300x300** archive and recorded its provenance and checksum. Our retained automated provenance artifact verifies **33,793 annotated images, 34,472 annotated objects, and 31 source labels**. The audit also shows that **28.58% of annotated objects occupy less than 1,024 px²**, so small-object performance remains a dedicated evaluation slice.
 
-The dataset pipeline preserves source quirks instead of silently hiding them. For example, FOD-A contains fractional bounding-box coordinates after resizing and source-label variants such as case or naming differences. AeroGuard preserves the raw annotations and requires explicit, versioned transformations before benchmarking.
+The provenance pipeline is deliberately fail-closed. During the build phase it caught an earlier provisional dataset summary that disagreed with the retained archive artifact. We corrected the public working draft before training and upgraded the inspector to freeze the source split files, hashes, overlap, and annotation coverage. This is exactly why AeroGuard treats dataset provenance as part of the engineering rather than bookkeeping.
+
+The dataset pipeline also preserves fractional bounding-box coordinates found after resizing instead of silently truncating them. Raw source labels are preserved exactly, and any future grouping or class remapping must be explicit and versioned.
 
 We also implemented deterministic class-aware IoU, precision, recall, and F1 evaluation primitives so model changes can be measured against frozen operating points rather than judged only by visual examples.
 
@@ -57,11 +59,11 @@ This makes the agent measurable. We can test whether it selected the correct nex
 
 ### Small FOD objects
 
-Nearly half of the annotated FOD-A objects fall below our 1,024 px² small-object threshold. That makes resolution, preprocessing, detector choice, and evaluation by object size especially important.
+The verified FOD-A archive contains a substantial small-object tail: 28.58% of annotated objects fall below our 1,024 px² evaluation threshold. That makes resolution, preprocessing, detector choice, and evaluation by object size especially important.
 
-### Dataset provenance and annotation quirks
+### Dataset provenance and split discipline
 
-Before training anything, we built acquisition, checksum, validation, and inspection tools. This exposed fractional boxes, taxonomy variants, and source-split details that need to be frozen before credible benchmark claims are possible.
+Before training anything, we built acquisition, checksum, validation, and inspection tools. The audit exposed fractional boxes and a mismatch between an earlier provisional summary and the retained archive artifact. We corrected the summary and strengthened the pipeline so no learned benchmark is accepted until source split membership and coverage are frozen.
 
 ### Making "agentic" behavior real
 
@@ -81,13 +83,14 @@ We also learned that agentic vision is most useful when it can be evaluated as a
 
 The next milestones are:
 
-1. freeze the exact FOD-A source train/validation split;
-2. establish the first real-data detector baseline;
-3. report precision, recall, F1, and dedicated small-object results;
-4. feed real detector outputs into the agent verification loop and quantify false-alert reduction;
-5. expand deterministic scenarios to include transient objects, weak evidence, false alarms, and tool failures;
-6. run the Graviton4 + COOL application benchmark on AWS;
-7. finish the evidence-first dashboard and final judge demo.
+1. finish the hash-and-coverage audit of the physical FOD-A `trainval.txt` and `test.txt` files;
+2. derive a deterministic development validation partition only inside source `trainval.txt`, keeping source `test.txt` untouched;
+3. establish the first real-data detector baseline;
+4. report precision, recall, F1/AP where appropriate, and dedicated small-object results;
+5. feed real detector outputs into the agent verification loop and quantify false-alert reduction;
+6. expand deterministic scenarios to include transient objects, weak evidence, false alarms, and tool failures;
+7. run the Graviton4 + COOL application benchmark on AWS;
+8. finish the evidence-first dashboard and final judge demo.
 
 The final objective is simple to state and hard to fake: **AeroGuard Vision sees a possible airfield hazard, decides what visual evidence it still needs, re-checks the scene with OpenCV 5, and only escalates verified risk through a human-controlled AWS workflow.**
 
