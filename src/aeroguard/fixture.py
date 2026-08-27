@@ -7,7 +7,12 @@ import numpy as np
 
 
 def generate_fixture(path: str | Path, *, width: int = 640, height: int = 360, fps: int = 20) -> Path:
-    """Generate a deterministic runway-like clip with one persistent FOD object."""
+    """Generate a deterministic runway-like clip with one persistent FOD object.
+
+    The static asphalt texture keeps the synthetic scene information-rich after
+    lossy MP4 encoding, so scene-quality safety checks exercise a plausible image
+    rather than an unrealistically flat gray test pattern.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -16,10 +21,17 @@ def generate_fixture(path: str | Path, *, width: int = 640, height: int = 360, f
         raise RuntimeError(f"failed to open video writer for {path}")
 
     rng = np.random.default_rng(20260826)
+    asphalt_texture = rng.normal(0, 18.0, size=(height, width, 1)).astype(np.int16)
+    asphalt = np.clip(
+        np.full((height, width, 3), 104, dtype=np.int16) + asphalt_texture,
+        0,
+        255,
+    ).astype(np.uint8)
+
     for i in range(90):
-        frame = np.full((height, width, 3), 104, dtype=np.uint8)
-        noise = rng.normal(0, 2.0, size=(height, width, 1)).astype(np.int16)
-        frame = np.clip(frame.astype(np.int16) + noise, 0, 255).astype(np.uint8)
+        frame = asphalt.copy()
+        sensor_noise = rng.normal(0, 2.0, size=(height, width, 1)).astype(np.int16)
+        frame = np.clip(frame.astype(np.int16) + sensor_noise, 0, 255).astype(np.uint8)
         cv2.line(frame, (width // 2, 0), (width // 2, height), (210, 210, 210), 5)
         cv2.line(frame, (width // 2 - 90, 0), (width // 2 - 90, height), (130, 130, 130), 2)
         cv2.line(frame, (width // 2 + 90, 0), (width // 2 + 90, height), (130, 130, 130), 2)
