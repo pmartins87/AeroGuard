@@ -1,0 +1,77 @@
+name: yolox-opencv-contract
+
+on:
+  push:
+    paths:
+      - ".github/workflows/yolox-opencv-contract.yml"
+      - "scripts/yolox_contract_check.py"
+      - "src/aeroguard/detectors/**"
+      - "training/yolox/**"
+  workflow_dispatch:
+
+concurrency:
+  group: yolox-opencv-contract
+  cancel-in-progress: true
+
+jobs:
+  verify-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      YOLOX_COMMIT: 6ddff4824372906469a7fae2dc3206c7aa4bbaee
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install AeroGuard and frozen CPU inference/export stack
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install --index-url https://download.pytorch.org/whl/cpu \
+            "torch==2.5.1" "torchvision==0.20.1"
+          pip install loguru tqdm thop ninja tabulate psutil tensorboard pycocotools onnx
+          git clone https://github.com/Megvii-BaseDetection/YOLOX.git /tmp/YOLOX
+          git -C /tmp/YOLOX checkout "$YOLOX_COMMIT"
+          pip install -e /tmp/YOLOX --no-deps
+          python - <<'PY'
+          import cv2, torch
+          assert cv2.__version__.startswith("5."), cv2.__version__
+          print("OpenCV", cv2.__version__)
+          print("torch", torch.__version__)
+          PY
+
+      - name: Download official YOLOX-tiny pretrained checkpoint
+        run: |
+          mkdir -p artifacts/yolox_contract
+          curl -L --fail --retry 3 \
+            https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_tiny.pth \
+            -o artifacts/yolox_contract/yolox_tiny.pth
+          sha256sum artifacts/yolox_contract/yolox_tiny.pth | tee artifacts/yolox_contract/checkpoint.sha256
+
+      - name: Export official checkpoint to decoded ONNX on CPU
+        run: |
+          python /tmp/YOLOX/tools/export_onnx.py \
+            -n yolox-tiny \
+            -c artifacts/yolox_contract/yolox_tiny.pth \
+            --output-name artifacts/yolox_contract/yolox_tiny_decoded.onnx \
+            --decode_in_inference \
+            --no-onnxsim
+          sha256sum artifacts/yolox_contract/yolox_tiny_decoded.onnx | tee artifacts/yolox_contract/onnx.sha256
+
+      - name: Compare official YOLOX preprocessing/PyTorch with OpenCV 5 DNN
+        run: |
+          python scripts/yolox_contract_check.py \
+            --checkpoint artifacts/yolox_contract/yolox_tiny.pth \
+            --onnx artifacts/yolox_contract/yolox_tiny_decoded.onnx \
+            --output artifacts/yolox_contract/contract.json \
+            --yolox-commit "$YOLOX_COMMIT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yolox-opencv-contract
+          path: artifacts/yolox_contract/
+          retention-days: 30
