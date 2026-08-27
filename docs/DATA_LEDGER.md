@@ -13,75 +13,88 @@ Rule: no external image/video/model asset enters a competition benchmark or publ
 - Frozen format: **Pascal VOC, 300x300**
 - Official Google Drive file ID: `1RdErcq8PGRXZUOGauaACkQG44T-QyZ4x`
 - Source-reported archive size: 412 MB
-- Verified downloaded archive size: **432,133,110 bytes**
+- Verified downloaded archive size: **431,758,527 bytes**
 - Verified archive SHA-256: **`408af3ac5be8af399367a7a846c6bd720727391c2d89de17985321c27468dd87`**
-- Provenance workflow run: **GitHub Actions `foda-probe` run 32994883456**
-- Verified annotation XML files: **18,742**
-- Verified images represented by non-empty annotations: **18,742**
-- Verified annotated objects: **31,493**
+- Retained provenance artifacts: GitHub Actions `foda-probe` runs **32994883456** and **32995768875**
+- Verified annotation XML files: **33,793**
+- Verified images represented by non-empty annotations: **33,793**
+- Verified annotated objects: **34,472**
 - Verified source labels: **31**
 - Verified image dimensions: **300x300**
-- Status: **ARCHIVE PROVENANCE VERIFIED; SOURCE SPLIT DISCOVERY STILL OPEN**
+- Physical source split files discovered: **`trainval.txt` + `test.txt`**
+- Status: **ARCHIVE/CORPUS PROVENANCE VERIFIED; SPLIT MEMBERSHIP AUDIT RE-RUNNING WITH HASH/COVERAGE CHECKS**
+- Correction audit: `docs/FODA_AUDIT_20260826.md`
 
 ### Verified class histogram
 
 | Source label | Objects |
 |---|---:|
-| Bolt_Washer | 1,516 |
-| ClampPart | 534 |
-| FuelCap | 250 |
-| MetalPart | 901 |
-| Nail | 1,354 |
-| Nut | 866 |
-| PaintChip | 900 |
-| Pen | 1,040 |
-| PlasticPart | 632 |
-| Screw | 1,549 |
-| SodaCan | 1,677 |
-| Washer | 1,367 |
-| Wire | 796 |
-| Wood | 838 |
-| Wrench | 1,776 |
-| aircraft_part | 1,228 |
-| bearing | 1,290 |
-| bit | 1,444 |
-| bolt | 1,084 |
-| bottlecap | 1,159 |
-| candywrapper | 31 |
-| cement | 311 |
-| hose | 1,152 |
-| metal_sheet | 314 |
-| nut | 3,812 |
-| paper | 681 |
-| plastic | 256 |
-| rock | 89 |
-| soda_can | 1,507 |
-| tape | 467 |
-| wood | 512 |
+| AdjustableClamp | 544 |
+| AdjustableWrench | 472 |
+| Battery | 1,059 |
+| Bolt | 3,300 |
+| BoltNutSet | 514 |
+| BoltWasher | 1,017 |
+| ClampPart | 917 |
+| Cutter | 1,352 |
+| FuelCap | 548 |
+| Hammer | 760 |
+| Hose | 294 |
+| Label | 1,310 |
+| LuggagePart | 738 |
+| LuggageTag | 1,686 |
+| MetalPart | 970 |
+| MetalSheet | 394 |
+| Nail | 1,193 |
+| Nut | 1,303 |
+| PaintChip | 968 |
+| Pen | 483 |
+| PlasticPart | 2,008 |
+| Pliers | 2,884 |
+| Rock | 662 |
+| Screw | 157 |
+| Screwdriver | 811 |
+| SodaCan | 950 |
+| Tape | 127 |
+| Washer | 2,139 |
+| Wire | 2,138 |
+| Wood | 206 |
+| Wrench | 2,568 |
 
 ### Object-size profile
 
-Object bounding-box area in the 300x300 source images:
+Object bounding-box area in the 300x300 source images, recomputed from the retained manifest:
 
-- minimum: ~13.74 px^2
-- p10: ~131.12 px^2
-- p25: ~401.42 px^2
-- median: ~1,151.90 px^2
-- p75: ~2,996.45 px^2
-- p90: ~6,217.20 px^2
-- p95: ~9,523.16 px^2
-- maximum: ~61,075.34 px^2
-- area < 1,024 px^2: **14,621 / 31,493 = ~46.43%**
-- area < 256 px^2: **5,727 / 31,493 = ~18.19%**
-- area < 64 px^2: **1,190 / 31,493 = ~3.78%**
+- minimum: ~21.41 px²
+- p10: ~217.73 px²
+- p25: ~842.08 px²
+- median: ~3,250.88 px²
+- p75: ~9,261.23 px²
+- p90: ~19,337.69 px²
+- p95: ~27,386.08 px²
+- maximum: ~77,785.68 px²
+- area < 1,024 px²: **9,852 / 34,472 = ~28.58%**
+- area < 256 px²: **3,718 / 34,472 = ~10.79%**
+- area < 64 px²: **776 / 34,472 = ~2.25%**
 
-Competition implication: small-object performance is a first-class evaluation slice. Nearly half of annotated FOD instances occupy less than 1,024 px^2.
+Competition implication: small-object performance remains a dedicated evaluation slice, but the corrected verified proportion under 1,024 px² is 28.58%.
 
-### Source quirks discovered during acquisition
+### Source facts and quirks discovered during acquisition
 
 1. FOD-A v2.1 Pascal VOC contains **fractional bounding-box coordinates** after resizing. AeroGuard preserves these coordinates as floats instead of silently truncating them.
-2. The source taxonomy contains labels that may be semantic/case variants, including `Nut`/`nut`, `Wood`/`wood`, and `SodaCan`/`soda_can`. Raw provenance preserves the original labels. Any canonical mapping used by a detector must be explicit, versioned, and evaluated against the raw taxonomy.
-3. The upstream documentation says the Pascal VOC package contains train/validation splits, but the first exact-name probe did not find `train.txt`/`val.txt`. Split filenames/structure must be discovered and frozen before any learned benchmark is reported.
+2. The frozen archive exposes **31 clean source labels** listed above. Raw source names are preserved exactly; any future class grouping must be explicit, versioned, and benchmarked against the raw taxonomy.
+3. The upstream README says a train/validation split is supplied, while the physical VOC package contains `VOC2007/ImageSets/Main/trainval.txt` and `test.txt`. AeroGuard preserves the physical source split files and keeps `test.txt` held out until the membership audit is frozen.
+4. A prior intermediate ledger contained inconsistent provisional corpus counts and taxonomy. Those values are superseded by the retained artifact audit in `docs/FODA_AUDIT_20260826.md`.
+
+### Planned benchmark split discipline
+
+Preferred policy once the source split audit passes:
+
+- keep source `test.txt` untouched as the final held-out evaluation set;
+- derive a deterministic train/validation partition **only inside source `trainval.txt`** for model selection and threshold calibration;
+- record the derived partition seed/algorithm and hashes;
+- never tune on source `test.txt`;
+- report final results on source `test.txt` and development results separately.
 
 ### Planned use
 
@@ -94,7 +107,7 @@ Competition implication: small-object performance is a first-class evaluation sl
 
 - automation: `.github/workflows/foda-probe.yml`
 - local/archive inspector: `scripts/foda_inspect.py`
-- parser/summary code: `src/aeroguard/datasets/foda.py`
+- parser/summary/split-audit code: `src/aeroguard/datasets/foda.py`
 - detection metric primitives: `src/aeroguard/evaluation/detection.py`
 
 ### Rights note
@@ -137,7 +150,7 @@ The repository carries an MIT license and links the dataset archive from its REA
 ## Split discipline
 
 For every learned detector benchmark:
-- preserve source-provided train/validation/test splits when available;
+- preserve source-provided train/validation/test semantics when available;
 - never tune thresholds on the final held-out test set;
 - record preprocessing and class remapping;
 - report results separately by source when mixing datasets;
