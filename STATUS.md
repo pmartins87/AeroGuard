@@ -43,12 +43,14 @@ Last updated: 2026-08-26
 - [x] Deterministic class-aware IoU / precision / recall / F1 evaluation primitives implemented with tests.
 - [x] Devpost Project Overview saved.
 - [x] Devpost Project Details story and technology/link plan drafted and preserved in `docs/DEVPOST_DRAFT.md`.
+- [x] Devpost finalization requirements captured into `docs/FINAL_SUBMISSION_CHECKLIST.md`.
 
 ### ACTIVE
 
 - [ ] Complete Devpost draft project profile.
 - [ ] Project Details remains intentionally incomplete until the required final demo video is available.
-- [ ] Additional Info can be partially filled now; final technical-report upload and final endpoint/live-demo details remain intentionally pending.
+- [ ] Additional Info remains intentionally incomplete until the final technical report and final endpoint/live-demo choice are available.
+- [ ] Final Submit page reached; **do not submit yet**. Terms acceptance and final submission remain pending until the evidence package is judge-ready.
 - [ ] Discover and freeze the exact source train/validation split filenames and counts inside FOD-A v2.1.
 - [ ] Establish the first real-data FOD detection baseline.
 - [ ] Report first real-data precision/recall/F1 plus a dedicated small-object slice.
@@ -60,18 +62,15 @@ None currently. AWS grant decision is external and does not block local/GitHub d
 
 ## Immediate next actions
 
-1. Devpost Additional Info:
-   - opt into **Best Use of COOL Award** and **Agentic Vision Award** in both applicable selectors;
-   - repository URL: `https://github.com/pmartins87/AeroGuard`;
-   - add reproducible local testing instructions;
-   - leave the required final report upload pending until the technical report contains measured results;
-   - leave Working web endpoint blank until a real judge-accessible endpoint exists (or use the permitted live screen-share path later).
+1. Leave Devpost in draft state; use `docs/FINAL_SUBMISSION_CHECKLIST.md` as the final gate.
 2. Finish FOD-A source split discovery; the workflow records candidate train/validation/test/ImageSets files as provenance artifacts.
 3. Freeze any source-label canonicalization policy without altering raw provenance.
 4. Build the first learned or otherwise credible real-data detector baseline on the source split.
 5. Measure precision/recall/F1 at frozen operating points, with separate small-object results.
 6. Feed real detector outputs into the bounded agent verification loop and quantify false-alert reduction.
-7. When AWS grant/credits arrive, execute the Graviton4 + COOL benchmark plan; no development waits on that decision.
+7. Expand agent scenarios and generate the workflow/evidence artifacts required for the Agentic Vision award.
+8. When AWS grant/credits arrive, execute the Graviton4 + COOL benchmark plan; no development waits on that decision.
+9. Only after the measured evidence exists, finalize the technical report, <=5-minute demo video, architecture diagrams, judge-accessible endpoint/live-demo path, and Devpost media.
 
 ## Verified evidence
 
