@@ -4,9 +4,17 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import sys
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path
+
+# Running `python scripts/<name>.py` places scripts/ rather than the repository
+# root on sys.path. Add the root explicitly so we can reuse the already-frozen
+# sequence grouping implementation without duplicating it.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from aeroguard.tracking import TrackDetection, TemporalTracker
 from scripts.foda_make_sequence_split import (
@@ -66,7 +74,6 @@ def audit_threshold(
             max_missed_frames=max_missed_frames,
         )
         group_confirmed = False
-        label_frame_counts: Counter[str] = Counter()
         for local_index, sid in enumerate(group["ids"]):
             detections = load_boxes(ann_dir, sid, local_index)
             counts = Counter(d.label for d in detections)
@@ -74,7 +81,6 @@ def audit_threshold(
                 group_label_max_simultaneous[(group["key"], label)] = max(
                     group_label_max_simultaneous[(group["key"], label)], count
                 )
-                label_frame_counts[label] += 1
             tracked = tracker.update(local_index, detections)
             observations += len(tracked)
             for item in tracked:
