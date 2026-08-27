@@ -2,7 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from aeroguard.datasets.foda import parse_voc_annotation, sha256_file, summarize_voc_dataset, verify_split_members
+from aeroguard.datasets.foda import (
+    discover_source_splits,
+    parse_voc_annotation,
+    sha256_file,
+    summarize_voc_dataset,
+    verify_split_members,
+)
 
 
 VOC_TEMPLATE = """<annotation>
@@ -78,14 +84,36 @@ def test_invalid_box_is_rejected(tmp_path: Path):
         parse_voc_annotation(xml)
 
 
-def test_split_counts_and_duplicate_guard(tmp_path: Path):
-    split_dir = tmp_path / "ImageSets" / "Main"
-    split_dir.mkdir(parents=True)
-    (split_dir / "train.txt").write_text("a\nb\n", encoding="utf-8")
-    (split_dir / "val.txt").write_text("c\n", encoding="utf-8")
-    assert verify_split_members(tmp_path) == {"train": 2, "val": 1}
+def test_source_trainval_test_split_discovery_and_coverage(tmp_path: Path):
+    annotations = tmp_path / "VOC2007" / "Annotations"
+    annotations.mkdir(parents=True)
+    for image_id in ("a", "b", "c"):
+        _write_annotation(
+            annotations / f"{image_id}.xml",
+            f"{image_id}.jpg",
+            [{"name": "bolt", "xmin": 1, "ymin": 2, "xmax": 11, "ymax": 12}],
+        )
 
-    (split_dir / "train.txt").write_text("a\na\n", encoding="utf-8")
+    split_dir = tmp_path / "VOC2007" / "ImageSets" / "Main"
+    split_dir.mkdir(parents=True)
+    (split_dir / "trainval.txt").write_text("a\nb\n", encoding="utf-8")
+    (split_dir / "test.txt").write_text("c\n", encoding="utf-8")
+
+    assert verify_split_members(tmp_path) == {"trainval": 2, "test": 1}
+    details = discover_source_splits(tmp_path)
+    assert details["trainval"]["count"] == 2
+    assert details["test"]["count"] == 1
+    assert details["coverage"]["annotation_ids"] == 3
+    assert details["coverage"]["covered_annotation_ids"] == 3
+    assert details["coverage"]["trainval_test_overlap"] == 0
+    assert details["coverage"]["missing_annotation_ids"] == 0
+    assert details["coverage"]["extra_split_ids"] == 0
+
+
+def test_split_duplicate_guard(tmp_path: Path):
+    split_dir = tmp_path / "VOC2007" / "ImageSets" / "Main"
+    split_dir.mkdir(parents=True)
+    (split_dir / "trainval.txt").write_text("a\na\n", encoding="utf-8")
     with pytest.raises(ValueError, match="duplicate IDs"):
         verify_split_members(tmp_path)
 
