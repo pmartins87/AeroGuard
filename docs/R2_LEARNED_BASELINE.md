@@ -60,7 +60,29 @@ Pretrained-weight provenance must be recorded separately from the Apache-2.0 cod
 - no 1/255 normalization in this path;
 - no RGB channel swap.
 
-This contract must be cross-checked numerically against the exact training/export implementation before a model is accepted.
+## Verified OpenCV 5 contract gate
+
+The untrained/pretrained infrastructure contract has now been cross-checked end-to-end in GitHub Actions before any FOD training is accepted.
+
+Canonical passing run: **`33037208949`**.
+
+Frozen evidence from artifact `yolox-opencv-contract`:
+
+- YOLOX source commit: `6ddff4824372906469a7fae2dc3206c7aa4bbaee`;
+- official YOLOX-tiny checkpoint SHA-256: `9de513de589ac98bb92d3bca53b5af7b9acfa9b0bacb831f7999d0f7afaee8f0`;
+- decoded ONNX SHA-256: `b947109838e1425de3c1e801454223b13e56334640f3e0147f6b2c5ef76755af`;
+- OpenCV: `5.0.0`;
+- Torch: `2.5.1+cpu`;
+- NumPy: `2.4.6`;
+- input size for the contract probe: `416x416`;
+- AeroGuard preprocessing vs official YOLOX preprocessing: **max absolute difference 0.0**;
+- decoded PyTorch vs OpenCV 5 DNN output shape: `[1, 3549, 85]`;
+- output max absolute difference: **0.0047874451**;
+- output mean absolute difference: **4.45198e-06**;
+- tolerance: `rtol=0.01`, `atol=0.01`;
+- result: **allclose = true**.
+
+This gate establishes that the preprocessing and OpenCV 5 DNN inference path are numerically compatible with the frozen YOLOX implementation. It is not a FOD accuracy claim; trained FOD weights and real-data metrics remain required.
 
 ## Output/post-processing contract
 
@@ -121,6 +143,8 @@ Before a trained model is called competition-ready:
 3. Final detections are compared after the same confidence/NMS policy.
 4. Any discrepancy is resolved or explicitly documented.
 5. The OpenCV DNN path becomes the canonical competition runtime.
+
+The pretrained contract gate above proves the infrastructure contract. The same acceptance gate must be repeated for the final trained FOD checkpoint.
 
 ## Relation to Agentic Vision
 
