@@ -5,7 +5,7 @@ Goal: maximize probability of an **Overall Award** while remaining fully eligibl
 Final deadline: **2026-10-26 23:59 PT**.
 Internal target: **submit on 2026-10-25 with at least 24 hours of buffer**.
 
-Current position (2026-08-27): **R0 closed; R1/R2 active; the deterministic R3 Agentic Vision exit gate has already been met in parallel.**
+Current position (2026-08-27): **R0 closed; R1/R2 active; the deterministic R3 Agentic Vision exit gate has already been met in parallel. The leakage-aware real-data split needed for the first learned baseline is now frozen.**
 
 ## R0 - Competition intelligence and scope freeze | Aug 26-28
 
@@ -33,7 +33,7 @@ Deliverables:
 - [~] Connected-components baseline + persistence exists; learned detector OpenCV DNN interface and GPU train/eval path are implemented, while first trained FOD weights remain pending.
 - [x] CLI produces machine-readable event JSON, annotated output video, and event-level evidence crops.
 - [x] Unit/integration tests, including artifact generation.
-- [x] GitHub Actions OpenCV 5 smoke test. Current full CI reference `33033468004`: PASS.
+- [x] GitHub Actions OpenCV 5 smoke test. Core CI has continued to pass after the R2/R3 extensions.
 
 Exit gate: one command turns a known video into reproducible detections + evidence.
 
@@ -43,16 +43,27 @@ Synthetic/deterministic exit gate is met. R1 remains open until the first real-d
 
 Deliverables:
 - [x] High-level FOD hazard/event taxonomy and evaluation schema frozen.
-- [~] Primary real-data detection path engineered: deterministic FOD-A preparation, YOLOX-tiny training runbook, ONNX export, OpenCV 5 DNN inference, metric/failure-analysis evaluator. First trained checkpoint/metrics pending.
+- [x] FOD-A v2.1 corpus audited: 33,793 images, 34,472 objects, 31 classes, 9,852 small objects <1,024 px².
+- [x] Public acquisition fallback structurally verified against the frozen official-corpus audit.
+- [x] Malformed mirror source split detected and documented: duplicates, four cross-split IDs, and 70 uncovered annotation IDs. Official-byte-source recheck remains pending due temporary Google Drive quota.
+- [x] Video-derived temporal leakage risk explicitly audited; random frame-level split rejected for primary claims.
+- [x] Leakage-aware sequence probe completed in run `33041114427`.
+- [x] Deterministic group-disjoint train/validation/test split v1 frozen in run `33041421174`: 129 atomic groups, 23,502/5,092/5,199 images, zero partition overlap, all 33,793 IDs covered once.
+- [x] Primary split files and hashes documented in `docs/R2_FODA_SEQUENCE_SPLIT_V1.md`.
+- [x] YOLOX-tiny -> decoded ONNX -> OpenCV 5 DNN numerical contract passed in run `33037208949`.
+- [~] Primary real-data detection path engineered: sequence-aware FOD-A preparation, YOLOX-tiny training runbook, ONNX export, OpenCV 5 DNN inference, metric/failure-analysis evaluator. **First trained checkpoint/metrics now become the immediate critical gate.**
 - [ ] Temporal verification and multi-frame tracking beyond simple persistence on real detector outputs.
 - [ ] Scene-quality checks (blur, darkness, occlusion/compression where feasible).
 - [ ] Confidence calibration/threshold policy from real validation data.
 - [ ] Baseline precision/recall/F1/AP and failure-case set.
-- [ ] Dedicated small-object performance slice on the audited FOD-A corpus.
+- [ ] Dedicated small-object performance result on the frozen leakage-aware test.
+
+Known data limitation:
+- Strict sequence grouping makes independent held-out coverage impossible for six singleton-sequence classes. Train covers all 31 classes; strict test independently covers 25/31. This limitation is frozen and will be disclosed rather than hidden.
 
 Current external/mechanical issues:
-- The official FOD-A Google Drive download is temporarily rate-limited in CI. Earlier verified provenance artifacts remain valid, but exact source split counts/hashes still need a successful fresh archive pass.
-- The first YOLOX/OpenCV contract workflow exposed a build-isolation issue; the workflow has been corrected to make the already-installed frozen CPU Torch visible to YOLOX setup and is being revalidated.
+- The official FOD-A Google Drive download remains temporarily rate-limited. Canonical archive provenance is already frozen; the pending task is only source-split byte reconciliation.
+- A CUDA-capable execution environment is required for the first serious YOLOX-tiny training run.
 
 Exit gate: measurable real-data perception baseline with documented limitations.
 
@@ -100,12 +111,13 @@ Exit gate: reproducible AWS run plus honest, statistically defensible COOL compa
 ## R5 - Evaluation campaign | Sep 28-Oct 5
 
 Overall evaluation:
-- [ ] Precision/recall/AP or equivalent perception metrics.
+- [ ] Precision/recall/AP or equivalent perception metrics on the frozen group-disjoint test.
 - [ ] Agent task-success rate on integrated scenarios.
 - [ ] False-alarm reduction after verification.
 - [ ] End-to-end latency.
 - [ ] Failure categories and stress tests.
 - [ ] Small-object and adverse-condition slices where supported by data.
+- [ ] Explicit report of strict-test class coverage limitations and any secondary all-class diagnostic kept separate from primary claims.
 
 Special-award evaluation:
 - [ ] COOL performance/value table.
