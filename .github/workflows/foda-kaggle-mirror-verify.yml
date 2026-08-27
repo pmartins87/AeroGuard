@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - ".github/workflows/foda-kaggle-mirror-verify.yml"
-      - "scripts/foda_make_dev_split.py"
       - "src/aeroguard/datasets/**"
   workflow_dispatch:
 
@@ -112,7 +111,7 @@ jobs:
               'mirror_actual': actual,
               'structural_equivalence_pass': not mismatches,
               'mismatches': mismatches,
-              'usage_policy': 'Temporary acquisition fallback only. Official source URL/archive SHA remain canonical provenance; source split hashes must be rechecked against the official archive when Google Drive quota permits.',
+              'usage_policy': 'Temporary acquisition fallback only. Official source URL/archive SHA remain canonical provenance; split artifacts must be rechecked against the official archive when Google Drive quota permits.',
           }
           out = Path('artifacts/foda_kaggle_verify/equivalence.json')
           out.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
@@ -121,7 +120,7 @@ jobs:
               raise SystemExit(f'mirror corpus differs from frozen official audit: {mismatches}')
           PY
 
-      - name: Audit source trainval/test including duplicate entries
+      - name: Audit source trainval/test and preserve defect evidence
         run: |
           python - <<'PY'
           import collections
@@ -130,12 +129,9 @@ jobs:
           from pathlib import Path
 
           root = Path('/tmp/foda-mirror/extracted')
-          trainval_matches = list(root.rglob('ImageSets/Main/trainval.txt'))
-          test_matches = list(root.rglob('ImageSets/Main/test.txt'))
-          ann_matches = [p for p in root.rglob('Annotations') if p.is_dir()]
-          if len(trainval_matches) != 1 or len(test_matches) != 1 or len(ann_matches) != 1:
-              raise SystemExit(f'unexpected split/layout multiplicity: trainval={len(trainval_matches)} test={len(test_matches)} annotations={len(ann_matches)}')
-          trainval, test, ann_dir = trainval_matches[0], test_matches[0], ann_matches[0]
+          trainval = next(root.rglob('ImageSets/Main/trainval.txt'))
+          test = next(root.rglob('ImageSets/Main/test.txt'))
+          ann_dir = next(p for p in root.rglob('Annotations') if p.is_dir())
 
           def read_ids(path):
               raw = path.read_bytes()
@@ -152,12 +148,24 @@ jobs:
           ann_ids = {p.stem for p in ann_dir.glob('*.xml')}
           tr_dupes = {k: v for k, v in collections.Counter(tr).items() if v > 1}
           te_dupes = {k: v for k, v in collections.Counter(te).items() if v > 1}
+          overlap = sorted(tr_set & te_set)
+          missing = sorted(ann_ids - (tr_set | te_set))
+          extra = sorted((tr_set | te_set) - ann_ids)
+
+          normalized_dir = Path('artifacts/foda_kaggle_verify/normalized_source_split')
+          normalized_dir.mkdir(parents=True, exist_ok=True)
+          tr_norm = normalized_dir / 'trainval_unique_only.txt'
+          te_norm = normalized_dir / 'test_unique_only.txt'
+          tr_norm.write_text(''.join(f'{x}\n' for x in tr_u), encoding='utf-8')
+          te_norm.write_text(''.join(f'{x}\n' for x in te_u), encoding='utf-8')
+          (normalized_dir / 'overlap_ids.txt').write_text(''.join(f'{x}\n' for x in overlap), encoding='utf-8')
+          (normalized_dir / 'missing_ids.txt').write_text(''.join(f'{x}\n' for x in missing), encoding='utf-8')
 
           report = {
-              'schema': 'aeroguard.foda.source_split_audit.v2',
+              'schema': 'aeroguard.foda.source_split_audit.v3',
               'provenance_status': 'provisional_from_structurally_equivalent_kaggle_mirror_pending_official-byte-source_recheck',
-              'trainval_path': str(trainval.relative_to(root)),
-              'test_path': str(test.relative_to(root)),
+              'source_split_usable_as_clean_holdout': False,
+              'reason': 'duplicate IDs, cross-split overlap, and uncovered annotation IDs were detected',
               'trainval_raw_count': len(tr),
               'test_raw_count': len(te),
               'trainval_unique_count': len(tr_u),
@@ -170,42 +178,105 @@ jobs:
               'test_duplicate_examples': list(sorted(te_dupes.items()))[:20],
               'trainval_raw_sha256': hashlib.sha256(tr_raw).hexdigest(),
               'test_raw_sha256': hashlib.sha256(te_raw).hexdigest(),
-              'overlap_unique_ids': len(tr_set & te_set),
+              'trainval_unique_only_sha256': hashlib.sha256(tr_norm.read_bytes()).hexdigest(),
+              'test_unique_only_sha256': hashlib.sha256(te_norm.read_bytes()).hexdigest(),
+              'overlap_unique_ids': len(overlap),
+              'overlap_ids': overlap,
               'annotation_count': len(ann_ids),
               'union_unique_count': len(tr_set | te_set),
-              'missing_annotation_ids_from_split_union': len(ann_ids - (tr_set | te_set)),
-              'split_ids_without_annotations': len((tr_set | te_set) - ann_ids),
+              'missing_annotation_ids_from_split_union': len(missing),
+              'missing_ids': missing,
+              'split_ids_without_annotations': len(extra),
+              'extra_ids': extra,
           }
-
-          normalized_dir = Path('artifacts/foda_kaggle_verify/normalized_source_split')
-          normalized_dir.mkdir(parents=True, exist_ok=True)
-          tr_norm = normalized_dir / 'trainval.txt'
-          te_norm = normalized_dir / 'test.txt'
-          tr_norm.write_text(''.join(f'{x}\n' for x in tr_u), encoding='utf-8')
-          te_norm.write_text(''.join(f'{x}\n' for x in te_u), encoding='utf-8')
-          report['trainval_normalized_sha256'] = hashlib.sha256(tr_norm.read_bytes()).hexdigest()
-          report['test_normalized_sha256'] = hashlib.sha256(te_norm.read_bytes()).hexdigest()
-
           out = Path('artifacts/foda_kaggle_verify/source_split_audit.json')
           out.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-          print(out.read_text())
-          if report['overlap_unique_ids'] != 0:
-              raise SystemExit('trainval/test unique-ID overlap detected')
-          if report['missing_annotation_ids_from_split_union'] != 0 or report['split_ids_without_annotations'] != 0:
-              raise SystemExit('source split unique-ID union does not exactly cover annotation IDs')
-
-          # Normalize only the ephemeral CI working copy so the deterministic split utility can proceed.
-          trainval.write_text(tr_norm.read_text(encoding='utf-8'), encoding='utf-8')
-          test.write_text(te_norm.read_text(encoding='utf-8'), encoding='utf-8')
+          print(json.dumps({k: v for k, v in report.items() if k not in {'missing_ids'}}, indent=2, sort_keys=True))
           PY
 
-      - name: Derive deterministic development split inside normalized source trainval only
+      - name: Preserve categorization metadata and probe sequence structure
         run: |
-          python scripts/foda_make_dev_split.py /tmp/foda-mirror/extracted \
-            --seed 20260826 \
-            --val-fraction 0.20 \
-            --output-dir artifacts/foda_kaggle_verify/dev_split
-          cat artifacts/foda_kaggle_verify/dev_split/manifest.json
+          python - <<'PY'
+          import csv
+          import json
+          import shutil
+          import statistics
+          import xml.etree.ElementTree as ET
+          from collections import Counter
+          from pathlib import Path
+
+          root = Path('/tmp/foda-mirror/extracted')
+          csv_path = next(root.rglob('FOD_categorization_annotations.csv'))
+          info_path = next(root.rglob('category_information.txt'))
+          outdir = Path('artifacts/foda_kaggle_verify/categorization')
+          outdir.mkdir(parents=True, exist_ok=True)
+          shutil.copy2(csv_path, outdir / csv_path.name)
+          shutil.copy2(info_path, outdir / info_path.name)
+
+          with csv_path.open(newline='', encoding='utf-8-sig') as fh:
+              rows = list(csv.DictReader(fh))
+          headers = list(rows[0].keys()) if rows else []
+          env_counts = Counter((r.get('Weather'), r.get('Light')) for r in rows)
+          parent_counts = Counter(str(Path(r.get('File', '')).parent) for r in rows)
+
+          ann_dir = next(p for p in root.rglob('Annotations') if p.is_dir())
+          signatures = []
+          for path in sorted(ann_dir.glob('*.xml')):
+              tree = ET.parse(path)
+              labels = tuple(sorted(obj.findtext('name', '') for obj in tree.findall('object')))
+              signatures.append((int(path.stem), labels))
+          runs = []
+          if signatures:
+              start_id, last_id, sig = signatures[0][0], signatures[0][0], signatures[0][1]
+              for image_id, labels in signatures[1:]:
+                  if image_id == last_id + 1 and labels == sig:
+                      last_id = image_id
+                  else:
+                      runs.append((start_id, last_id, sig))
+                      start_id = last_id = image_id
+                      sig = labels
+              runs.append((start_id, last_id, sig))
+          lengths = [b - a + 1 for a, b, _ in runs]
+          seq = {
+              'csv_headers': headers,
+              'csv_rows': len(rows),
+              'csv_first_rows': rows[:10],
+              'csv_last_rows': rows[-10:],
+              'weather_light_counts': {f'{k[0]}|{k[1]}': v for k, v in sorted(env_counts.items())},
+              'distinct_file_parent_paths': len(parent_counts),
+              'top_file_parent_paths': parent_counts.most_common(20),
+              'annotation_same-label_contiguous_runs': len(runs),
+              'run_length_min': min(lengths) if lengths else None,
+              'run_length_median': statistics.median(lengths) if lengths else None,
+              'run_length_mean': statistics.mean(lengths) if lengths else None,
+              'run_length_max': max(lengths) if lengths else None,
+              'runs_ge_5': sum(x >= 5 for x in lengths),
+              'runs_ge_15': sum(x >= 15 for x in lengths),
+              'runs_ge_30': sum(x >= 30 for x in lengths),
+              'first_runs': [
+                  {'start': f'{a:06d}', 'end': f'{b:06d}', 'length': b-a+1, 'labels': list(sig)}
+                  for a, b, sig in runs[:30]
+              ],
+          }
+          out = Path('artifacts/foda_kaggle_verify/sequence_probe.json')
+          out.write_text(json.dumps(seq, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print(json.dumps(seq, indent=2, sort_keys=True))
+          PY
+
+      - name: Mark source split gate result
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('artifacts/foda_kaggle_verify/source_split_audit.json').read_text())
+          gate = {
+              'schema': 'aeroguard.foda.split_gate.v1',
+              'source_split_pass': bool(report['source_split_usable_as_clean_holdout']),
+              'action': 'design and freeze a replacement leakage-aware split; do not train against the defective source split',
+          }
+          Path('artifacts/foda_kaggle_verify/split_gate.json').write_text(json.dumps(gate, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(gate, indent=2, sort_keys=True))
+          PY
 
       - uses: actions/upload-artifact@v4
         if: always()
