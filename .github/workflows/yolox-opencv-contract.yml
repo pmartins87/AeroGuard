@@ -36,8 +36,6 @@ jobs:
           pip install loguru tqdm thop ninja tabulate psutil tensorboard pycocotools onnx
           git clone https://github.com/Megvii-BaseDetection/YOLOX.git /tmp/YOLOX
           git -C /tmp/YOLOX checkout "$YOLOX_COMMIT"
-          # YOLOX setup imports torch while building. Disable build isolation so
-          # the already-installed frozen CPU torch is visible to setuptools.
           pip install -e /tmp/YOLOX --no-deps --no-build-isolation
           python - <<'PY'
           import cv2, torch
@@ -56,12 +54,17 @@ jobs:
 
       - name: Export official checkpoint to decoded ONNX on CPU
         run: |
+          # Frozen YOLOX calls the removed private torch.onnx._export API.
+          # Patch that single call to the supported public equivalent while
+          # leaving model/export arguments unchanged.
+          sed -i 's/torch\.onnx\._export(/torch.onnx.export(/' /tmp/YOLOX/tools/export_onnx.py
           python /tmp/YOLOX/tools/export_onnx.py \
             -n yolox-tiny \
             -c artifacts/yolox_contract/yolox_tiny.pth \
             --output-name artifacts/yolox_contract/yolox_tiny_decoded.onnx \
             --decode_in_inference \
             --no-onnxsim
+          test -s artifacts/yolox_contract/yolox_tiny_decoded.onnx
           sha256sum artifacts/yolox_contract/yolox_tiny_decoded.onnx | tee artifacts/yolox_contract/onnx.sha256
 
       - name: Compare official YOLOX preprocessing/PyTorch with OpenCV 5 DNN
@@ -73,6 +76,7 @@ jobs:
             --yolox-commit "$YOLOX_COMMIT"
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: yolox-opencv-contract
           path: artifacts/yolox_contract/
