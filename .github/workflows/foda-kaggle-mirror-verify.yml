@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - ".github/workflows/foda-kaggle-mirror-verify.yml"
-      - "scripts/foda_inspect.py"
       - "scripts/foda_make_dev_split.py"
       - "src/aeroguard/datasets/**"
   workflow_dispatch:
@@ -43,46 +42,64 @@ jobs:
           unzip -l /tmp/foda-mirror/kaggle_dataset.zip > artifacts/foda_kaggle_verify/package_listing.txt
           unzip -q /tmp/foda-mirror/kaggle_dataset.zip -d /tmp/foda-mirror/extracted
 
-      - name: Inspect extracted mirror with canonical FOD-A parser
+      - name: Inspect mirror corpus independently of source split defects
         run: |
-          python scripts/foda_inspect.py /tmp/foda-mirror/extracted \
-            --output artifacts/foda_kaggle_verify/mirror_manifest.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from aeroguard.datasets.foda import summarize_voc_dataset
 
-      - name: Compare mirror against frozen official-corpus audit
+          root = Path('/tmp/foda-mirror/extracted')
+          summary = summarize_voc_dataset(root).as_dict()
+          payload = {
+              'dataset': 'FOD-A',
+              'source_version': '2.1 Pascal VOC',
+              'acquisition': 'Kaggle public mirror',
+              'summary': summary,
+          }
+          out = Path('artifacts/foda_kaggle_verify/mirror_manifest.json')
+          out.write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print(json.dumps({k: v for k, v in summary.items() if k != 'object_areas'}, indent=2, sort_keys=True))
+          PY
+
+      - name: Compare mirror corpus against frozen official-corpus audit
         run: |
           python - <<'PY'
           import json
           import os
           from pathlib import Path
 
-          manifest = json.loads(Path('artifacts/foda_kaggle_verify/mirror_manifest.json').read_text())
-          summary = manifest['summary']
-          expected = {
-              'annotations': 33793,
-              'images': 33793,
-              'objects': 34472,
-              'labels_count': 31,
-              'small_object_count': 9852,
-              'small_object_fraction': 0.2857965885356237,
-              'small_object_threshold_area_px2': 1024,
-              'min_width': 300,
-              'max_width': 300,
-              'min_height': 300,
-              'max_height': 300,
+          summary = json.loads(Path('artifacts/foda_kaggle_verify/mirror_manifest.json').read_text())['summary']
+          expected_class_counts = {
+              'AdjustableClamp': 544, 'AdjustableWrench': 472, 'Battery': 1059,
+              'Bolt': 3300, 'BoltNutSet': 514, 'BoltWasher': 1017,
+              'ClampPart': 917, 'Cutter': 1352, 'FuelCap': 548, 'Hammer': 760,
+              'Hose': 294, 'Label': 1310, 'LuggagePart': 738, 'LuggageTag': 1686,
+              'MetalPart': 970, 'MetalSheet': 394, 'Nail': 1193, 'Nut': 1303,
+              'PaintChip': 968, 'Pen': 483, 'PlasticPart': 2008, 'Pliers': 2884,
+              'Rock': 662, 'Screw': 157, 'Screwdriver': 811, 'SodaCan': 950,
+              'Tape': 127, 'Washer': 2139, 'Wire': 2138, 'Wood': 206, 'Wrench': 2568,
           }
-          labels = summary.get('labels', {})
+          small_count = sum(float(area) < 1024.0 for area in summary['object_areas'])
           actual = {
-              'annotations': summary['annotations'],
-              'images': summary['images'],
-              'objects': summary['objects'],
-              'labels_count': len(labels),
-              'small_object_count': summary['small_object_count'],
-              'small_object_fraction': summary['small_object_fraction'],
-              'small_object_threshold_area_px2': summary['small_object_threshold_area_px2'],
-              'min_width': summary['min_width'],
-              'max_width': summary['max_width'],
-              'min_height': summary['min_height'],
-              'max_height': summary['max_height'],
+              'annotation_files': summary['annotation_files'],
+              'images_with_objects': summary['images_with_objects'],
+              'total_objects': summary['total_objects'],
+              'class_count': summary['class_count'],
+              'class_counts': summary['class_counts'],
+              'image_widths': summary['image_widths'],
+              'image_heights': summary['image_heights'],
+              'small_object_count_lt_1024': small_count,
+          }
+          expected = {
+              'annotation_files': 33793,
+              'images_with_objects': 33793,
+              'total_objects': 34472,
+              'class_count': 31,
+              'class_counts': expected_class_counts,
+              'image_widths': [300],
+              'image_heights': [300],
+              'small_object_count_lt_1024': 9852,
           }
           mismatches = {k: {'expected': expected[k], 'actual': actual[k]} for k in expected if actual[k] != expected[k]}
           report = {
@@ -95,18 +112,19 @@ jobs:
               'mirror_actual': actual,
               'structural_equivalence_pass': not mismatches,
               'mismatches': mismatches,
-              'usage_policy': 'Temporary acquisition fallback only. Keep the official source URL and archive SHA as canonical provenance; re-check source split hashes against the official archive when Google Drive quota permits.',
+              'usage_policy': 'Temporary acquisition fallback only. Official source URL/archive SHA remain canonical provenance; source split hashes must be rechecked against the official archive when Google Drive quota permits.',
           }
           out = Path('artifacts/foda_kaggle_verify/equivalence.json')
-          out.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+          out.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
           print(out.read_text())
           if mismatches:
               raise SystemExit(f'mirror corpus differs from frozen official audit: {mismatches}')
           PY
 
-      - name: Freeze and validate source trainval/test split from structurally equivalent mirror
+      - name: Audit source trainval/test including duplicate entries
         run: |
           python - <<'PY'
+          import collections
           import hashlib
           import json
           from pathlib import Path
@@ -121,42 +139,67 @@ jobs:
 
           def read_ids(path):
               raw = path.read_bytes()
-              ids = [line.strip() for line in raw.decode('utf-8').splitlines() if line.strip()]
+              ids = [line.strip().split()[0] for line in raw.decode('utf-8').splitlines() if line.strip()]
               return raw, ids
+
+          def unique_in_order(ids):
+              return list(dict.fromkeys(ids))
 
           tr_raw, tr = read_ids(trainval)
           te_raw, te = read_ids(test)
+          tr_u, te_u = unique_in_order(tr), unique_in_order(te)
+          tr_set, te_set = set(tr_u), set(te_u)
           ann_ids = {p.stem for p in ann_dir.glob('*.xml')}
-          tr_set, te_set = set(tr), set(te)
+          tr_dupes = {k: v for k, v in collections.Counter(tr).items() if v > 1}
+          te_dupes = {k: v for k, v in collections.Counter(te).items() if v > 1}
+
           report = {
-              'schema': 'aeroguard.foda.source_split_audit.v1',
+              'schema': 'aeroguard.foda.source_split_audit.v2',
               'provenance_status': 'provisional_from_structurally_equivalent_kaggle_mirror_pending_official-byte-source_recheck',
               'trainval_path': str(trainval.relative_to(root)),
               'test_path': str(test.relative_to(root)),
-              'trainval_count': len(tr),
-              'test_count': len(te),
-              'trainval_unique': len(tr_set),
-              'test_unique': len(te_set),
-              'trainval_sha256': hashlib.sha256(tr_raw).hexdigest(),
-              'test_sha256': hashlib.sha256(te_raw).hexdigest(),
-              'overlap_count': len(tr_set & te_set),
+              'trainval_raw_count': len(tr),
+              'test_raw_count': len(te),
+              'trainval_unique_count': len(tr_u),
+              'test_unique_count': len(te_u),
+              'trainval_duplicate_occurrences': len(tr) - len(tr_u),
+              'test_duplicate_occurrences': len(te) - len(te_u),
+              'trainval_duplicate_ids': len(tr_dupes),
+              'test_duplicate_ids': len(te_dupes),
+              'trainval_duplicate_examples': list(sorted(tr_dupes.items()))[:20],
+              'test_duplicate_examples': list(sorted(te_dupes.items()))[:20],
+              'trainval_raw_sha256': hashlib.sha256(tr_raw).hexdigest(),
+              'test_raw_sha256': hashlib.sha256(te_raw).hexdigest(),
+              'overlap_unique_ids': len(tr_set & te_set),
               'annotation_count': len(ann_ids),
-              'union_count': len(tr_set | te_set),
+              'union_unique_count': len(tr_set | te_set),
               'missing_annotation_ids_from_split_union': len(ann_ids - (tr_set | te_set)),
               'split_ids_without_annotations': len((tr_set | te_set) - ann_ids),
           }
+
+          normalized_dir = Path('artifacts/foda_kaggle_verify/normalized_source_split')
+          normalized_dir.mkdir(parents=True, exist_ok=True)
+          tr_norm = normalized_dir / 'trainval.txt'
+          te_norm = normalized_dir / 'test.txt'
+          tr_norm.write_text(''.join(f'{x}\n' for x in tr_u), encoding='utf-8')
+          te_norm.write_text(''.join(f'{x}\n' for x in te_u), encoding='utf-8')
+          report['trainval_normalized_sha256'] = hashlib.sha256(tr_norm.read_bytes()).hexdigest()
+          report['test_normalized_sha256'] = hashlib.sha256(te_norm.read_bytes()).hexdigest()
+
           out = Path('artifacts/foda_kaggle_verify/source_split_audit.json')
-          out.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+          out.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
           print(out.read_text())
-          if report['overlap_count'] != 0:
-              raise SystemExit('trainval/test overlap detected')
-          if report['trainval_unique'] != report['trainval_count'] or report['test_unique'] != report['test_count']:
-              raise SystemExit('duplicate IDs detected in source split')
+          if report['overlap_unique_ids'] != 0:
+              raise SystemExit('trainval/test unique-ID overlap detected')
           if report['missing_annotation_ids_from_split_union'] != 0 or report['split_ids_without_annotations'] != 0:
-              raise SystemExit('source split union does not exactly cover annotation IDs')
+              raise SystemExit('source split unique-ID union does not exactly cover annotation IDs')
+
+          # Normalize only the ephemeral CI working copy so the deterministic split utility can proceed.
+          trainval.write_text(tr_norm.read_text(encoding='utf-8'), encoding='utf-8')
+          test.write_text(te_norm.read_text(encoding='utf-8'), encoding='utf-8')
           PY
 
-      - name: Derive deterministic development split inside source trainval only
+      - name: Derive deterministic development split inside normalized source trainval only
         run: |
           python scripts/foda_make_dev_split.py /tmp/foda-mirror/extracted \
             --seed 20260826 \
